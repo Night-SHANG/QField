@@ -29,6 +29,8 @@ Item {
   property bool searchBusy: false
   property bool searchPanelVisible: false
   property bool waterworksProjectReady: false
+  property var pendingAssetGeometry
+  property var pendingPipelineGeometry
 
   Settings {
     id: workerAppSettings
@@ -133,16 +135,45 @@ Item {
 
   function startPipelineCapture() {
     const layer = pipelineLayer();
-    const dashBoard = iface.findItemByObjectName("dashBoard");
-    if (!layer || !dashBoard) {
-      mainWindow.displayToast("当前供水数据缺少管线图层");
+    const digitizingToolbar = iface.findItemByObjectName("digitizingToolbar");
+    if (!layer || !digitizingToolbar) {
+      mainWindow.displayToast("当前供水数据无法开始画管线");
       return;
     }
 
-    dashBoard.activeLayer = layer;
+    pendingPipelineGeometry = null;
     waterworksDialog.close();
-    mainWindow.changeMode("digitize");
-    mainWindow.displayToast("依次点击管线经过的位置，完成后点右下角 ✓，再填写管径、材质等参数");
+    digitizingToolbar.geometryRequestedLayer = layer;
+    digitizingToolbar.geometryRequestedItem = pipelineGeometryReceiver;
+    digitizingToolbar.geometryRequested = true;
+    mainWindow.displayToast("依次点击管线经过的位置，完成后点右下角 ✓");
+  }
+
+  function savePipelineEntry() {
+    const layer = pipelineLayer();
+    if (!layer || !pendingPipelineGeometry) {
+      mainWindow.displayToast("无法保存管线");
+      return;
+    }
+
+    const feature = QfFeatureUtils.createFeature(layer, pendingPipelineGeometry);
+    feature.setAttribute("name", pipelineEntryName.text.trim());
+    feature.setAttribute("code", pipelineEntryCode.text.trim());
+    feature.setAttribute("diameter_mm", pipelineEntryDiameter.text.length > 0 ? Number(pipelineEntryDiameter.text) : null);
+    feature.setAttribute("material", pipelineEntryMaterial.text.trim());
+    feature.setAttribute("pipe_type", pipelineEntryType.text.trim());
+    feature.setAttribute("pressure_zone", pipelineEntryPressure.text.trim());
+    feature.setAttribute("note", pipelineEntryNote.text.trim());
+
+    if (!QfLayerUtils.addFeature(layer, feature)) {
+      mainWindow.displayToast("管线保存失败");
+      return;
+    }
+
+    pipelineEntryDialog.close();
+    pendingPipelineGeometry = null;
+    mainWindow.changeMode("browse");
+    mainWindow.displayToast("管线已保存");
   }
 
   function assetTypeLayer() {
@@ -595,7 +626,7 @@ Item {
   function createAssetAtCurrentPosition() {
     const layer = assetLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“供水设施”图层");
+      mainWindow.displayToast("当前供水数据缺少点位图层");
       return;
     }
 
@@ -611,28 +642,40 @@ Item {
       return;
     }
 
-    if (!positioning.projectedPosition) {
-      mainWindow.displayToast("无法取得项目坐标");
-      return;
-    }
-
     if (info.haccValid && Number(info.hacc) > accuracyWarningMeters) {
-      mainWindow.displayToast("当前定位精度约 ±" + Math.round(Number(info.hacc)) + " 米，建议到开阔位置等待定位稳定后再采点");
+      mainWindow.displayToast("当前定位精度约 ±" + Math.round(Number(info.hacc)) + " 米，建议到开阔位置等待定位稳定后再放点");
     }
 
-    const projected = positioning.projectedPosition;
-    const geometry = QfGeometryUtils.createGeometryFromWkt("POINT(" + Number(projected.x) + " " + Number(projected.y) + ")");
-    const feature = QfFeatureUtils.createFeature(layer, geometry, positioning.positionInformation);
+    pendingAssetGeometry = QfGeometryUtils.createGeometryFromWkt(
+      "POINT(" + Number(info.longitude) + " " + Number(info.latitude) + ")"
+    );
+    assetEntryDialog.open();
+  }
 
-    if (!overlayFeatureFormDrawer) {
-      mainWindow.displayToast("无法打开新增点位表单");
+  function saveAssetEntry() {
+    const layer = assetLayer();
+    if (!layer || !pendingAssetGeometry) {
+      mainWindow.displayToast("无法保存点位");
       return;
     }
 
-    overlayFeatureFormDrawer.featureModel.feature = feature;
-    overlayFeatureFormDrawer.state = "Add";
-    waterworksDialog.close();
-    overlayFeatureFormDrawer.open();
+    const feature = QfFeatureUtils.createFeature(layer, pendingAssetGeometry);
+    const typeItem = assetTypeOptions.get(assetEntryType.currentIndex);
+    feature.setAttribute("asset_type", typeItem && typeItem.value ? String(typeItem.value) : "other");
+    feature.setAttribute("name", assetEntryName.text.trim());
+    feature.setAttribute("code", assetEntryCode.text.trim());
+    feature.setAttribute("area_name", assetEntryArea.text.trim());
+    feature.setAttribute("address_hint", assetEntryAddress.text.trim());
+    feature.setAttribute("note", assetEntryNote.text.trim());
+
+    if (!QfLayerUtils.addFeature(layer, feature)) {
+      mainWindow.displayToast("点位保存失败");
+      return;
+    }
+
+    assetEntryDialog.close();
+    pendingAssetGeometry = null;
+    mainWindow.displayToast("点位已保存");
   }
 
   function setParentReference(feature, objectId, objectKind) {
@@ -726,6 +769,16 @@ Item {
     overlayFeatureFormDrawer.open();
   }
 
+  Item {
+    id: pipelineGeometryReceiver
+    visible: false
+
+    function requestedGeometryReceived(geometry) {
+      pendingPipelineGeometry = geometry.asQgsGeometry();
+      pipelineEntryDialog.open();
+    }
+  }
+
   QfExpressionEvaluator {
     id: nearbyDistanceEvaluator
     project: qgisProject
@@ -753,6 +806,183 @@ Item {
 
   ListModel {
     id: assetSearchResults
+  }
+
+  QfDialog {
+    id: assetEntryDialog
+    parent: mainWindow.contentItem
+    title: "新增点位"
+    modal: true
+    standardButtons: Dialog.NoButton
+    width: Math.min(mainWindow.width - 32, 520)
+    height: Math.min(mainWindow.height - 48, 620)
+    x: (mainWindow.width - width) / 2
+    y: (mainWindow.height - height) / 2
+
+    onOpened: {
+      loadAssetTypeOptions();
+      assetEntryType.currentIndex = assetTypeOptions.count > 1 ? 1 : 0;
+      assetEntryName.clear();
+      assetEntryCode.clear();
+      assetEntryArea.clear();
+      assetEntryAddress.clear();
+      assetEntryNote.clear();
+    }
+
+    ColumnLayout {
+      anchors.fill: parent
+      spacing: 8
+
+      ComboBox {
+        id: assetEntryType
+        Layout.fillWidth: true
+        model: assetTypeOptions
+        textRole: "text"
+      }
+
+      TextField {
+        id: assetEntryName
+        Layout.fillWidth: true
+        placeholderText: "点位名称（可选）"
+      }
+
+      TextField {
+        id: assetEntryCode
+        Layout.fillWidth: true
+        placeholderText: "设施编号（可选）"
+      }
+
+      TextField {
+        id: assetEntryArea
+        Layout.fillWidth: true
+        placeholderText: "片区（可选）"
+      }
+
+      TextField {
+        id: assetEntryAddress
+        Layout.fillWidth: true
+        placeholderText: "位置描述，例如：村口向东 20 米"
+      }
+
+      TextArea {
+        id: assetEntryNote
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        placeholderText: "备注（可选）"
+        wrapMode: TextEdit.Wrap
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Button {
+          Layout.fillWidth: true
+          text: "取消"
+          onClicked: {
+            pendingAssetGeometry = null;
+            assetEntryDialog.close();
+          }
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "保存点位"
+          onClicked: plugin.saveAssetEntry()
+        }
+      }
+    }
+  }
+
+  QfDialog {
+    id: pipelineEntryDialog
+    parent: mainWindow.contentItem
+    title: "填写管线参数"
+    modal: true
+    standardButtons: Dialog.NoButton
+    width: Math.min(mainWindow.width - 32, 520)
+    height: Math.min(mainWindow.height - 48, 650)
+    x: (mainWindow.width - width) / 2
+    y: (mainWindow.height - height) / 2
+
+    onOpened: {
+      pipelineEntryName.clear();
+      pipelineEntryCode.clear();
+      pipelineEntryDiameter.clear();
+      pipelineEntryMaterial.clear();
+      pipelineEntryType.clear();
+      pipelineEntryPressure.clear();
+      pipelineEntryNote.clear();
+    }
+
+    ColumnLayout {
+      anchors.fill: parent
+      spacing: 8
+
+      TextField {
+        id: pipelineEntryName
+        Layout.fillWidth: true
+        placeholderText: "管线名称（可选）"
+      }
+
+      TextField {
+        id: pipelineEntryCode
+        Layout.fillWidth: true
+        placeholderText: "管线编号（可选）"
+      }
+
+      TextField {
+        id: pipelineEntryDiameter
+        Layout.fillWidth: true
+        placeholderText: "管径，例如 300"
+        inputMethodHints: Qt.ImhFormattedNumbersOnly
+      }
+
+      TextField {
+        id: pipelineEntryMaterial
+        Layout.fillWidth: true
+        placeholderText: "材质，例如 PE / 球墨铸铁"
+      }
+
+      TextField {
+        id: pipelineEntryType
+        Layout.fillWidth: true
+        placeholderText: "管线类型，例如 主管 / 支管"
+      }
+
+      TextField {
+        id: pipelineEntryPressure
+        Layout.fillWidth: true
+        placeholderText: "压力分区（可选）"
+      }
+
+      TextArea {
+        id: pipelineEntryNote
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        placeholderText: "备注（可选）"
+        wrapMode: TextEdit.Wrap
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Button {
+          Layout.fillWidth: true
+          text: "取消"
+          onClicked: {
+            pendingPipelineGeometry = null;
+            pipelineEntryDialog.close();
+            mainWindow.changeMode("browse");
+          }
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "保存管线"
+          onClicked: plugin.savePipelineEntry()
+        }
+      }
+    }
   }
 
   QfDialog {
