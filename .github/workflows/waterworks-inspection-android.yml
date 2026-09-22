@@ -150,6 +150,30 @@ jobs:
             --force
           test -s custom/waterworks-inspection/plugins/waterworks-inspection/waterworks-template.gpkg
 
+      - name: Prepare Tianditu build config
+        env:
+          TIANDITU_TK: ${{ secrets.TIANDITU_TK }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          token = os.environ.get("TIANDITU_TK", "").strip()
+          target = Path("custom/waterworks-inspection/plugins/waterworks-inspection/TiandituConfig.js")
+          target.write_text(
+              ".pragma library\n\n"
+              "// Generated during CI. Do not commit a real key here.\n"
+              "function token() {\n"
+              f"  return {json.dumps(token)};\n"
+              "}\n",
+              encoding="utf-8",
+          )
+          print("Tianditu build key configured:", bool(token))
+          PY
+
       - name: Generate version details
         shell: bash
         run: |
