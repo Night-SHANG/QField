@@ -160,8 +160,8 @@ class PluginContractTests(unittest.TestCase):
     def test_location_marker_can_be_hidden_without_stopping_positioning(self) -> None:
         self.assertIn("property bool showMyLocationMarker: true", self.text)
         self.assertIn("function setMyLocationMarkerVisible(visible)", self.text)
-        self.assertIn('"隐藏我的位置"', self.text)
-        self.assertIn('"显示我的位置"', self.text)
+        self.assertIn('"隐藏我的位置标记"', self.text)
+        self.assertIn('"显示我的位置标记"', self.text)
 
     def test_professional_layer_controls_are_hidden(self) -> None:
         self.assertIn('iface.findItemByObjectName("mapThemeContainer")', self.text)
