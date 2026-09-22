@@ -60,7 +60,7 @@ ALIASES = {
     "assets_point": {
         "code": "设施编号",
         "name": "点位名称",
-        "asset_type": "设施类型",
+        "asset_type": "设施类型 *",
         "status": "状态",
         "pipeline_id": "所属管线",
         "area_name": "所属片区",
@@ -219,8 +219,8 @@ RELATION_REFERENCE_FIELDS = {
 
 HIDDEN_FIELDS = {
     "asset_types": {"fid"},
-    "assets_point": {"fid", "id", "created_at", "updated_at"},
-    "pipelines": {"fid", "id", "created_at", "updated_at"},
+    "assets_point": {"fid", "id", "pipeline_id", "last_inspection_at", "created_at", "updated_at"},
+    "pipelines": {"fid", "id", "last_inspection_at", "created_at", "updated_at"},
     "inspections": {"fid", "id", "asset_id", "pipeline_id", "created_at"},
     "attachments": {
         "fid",
