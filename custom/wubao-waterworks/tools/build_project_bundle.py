@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 from pathlib import Path
 
@@ -104,8 +105,11 @@ def main() -> int:
     parser.add_argument("output_directory", type=Path)
     parser.add_argument(
         "--tianditu-token",
-        default=None,
-        help="approved TianDiTu Shaanxi token",
+        default=os.environ.get("TDT_SHAANXI_TOKEN"),
+        help=(
+            "approved TianDiTu Shaanxi token; defaults to "
+            "TDT_SHAANXI_TOKEN"
+        ),
     )
     parser.add_argument(
         "--offline-basemap",
