@@ -216,6 +216,55 @@ class GeoPackageSchemaTests(unittest.TestCase):
             ).fetchone()[0]
             self.assertEqual(latest, "2026-09-20 08:00:00")
 
+    def test_repair_result_domain_and_completion_time(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "77777777-7777-7777-7777-777777777777"
+            db.execute(
+                "INSERT INTO assets_point(id, name) VALUES (?, ?)",
+                (asset_id, "维修测试点"),
+            )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO repairs(asset_id, result)
+                    VALUES (?, 'invalid')
+                    """,
+                    (asset_id,),
+                )
+
+            repair_id = "88888888-8888-8888-8888-888888888888"
+            db.execute(
+                """
+                INSERT INTO repairs(id, asset_id, result)
+                VALUES (?, ?, 'resolved')
+                """,
+                (repair_id, asset_id),
+            )
+            repaired_at = db.execute(
+                "SELECT repaired_at FROM repairs WHERE id=?",
+                (repair_id,),
+            ).fetchone()[0]
+
+        self.assertIsNotNone(repaired_at)
+
+    def test_repair_defaults_to_unresolved(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "99999999-9999-9999-9999-999999999999"
+            db.execute(
+                "INSERT INTO assets_point(id, name) VALUES (?, ?)",
+                (asset_id, "维修默认值测试"),
+            )
+            db.execute(
+                "INSERT INTO repairs(asset_id) VALUES (?)",
+                (asset_id,),
+            )
+            result = db.execute(
+                "SELECT result FROM repairs ORDER BY fid DESC LIMIT 1"
+            ).fetchone()[0]
+
+        self.assertEqual(result, "unresolved")
+
     def test_history_tables_are_not_delete_cascaded(self) -> None:
         with sqlite3.connect(self.path) as db:
             asset_id = "11111111-1111-1111-1111-111111111111"
