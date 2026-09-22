@@ -726,7 +726,8 @@ Item {
     round: true
 
     onClicked: {
-      loadAssetTypeOptions()
+      refreshProjectState()
+      applyWorkerMode(false)
       waterworksDialog.open()
     }
   }
@@ -758,7 +759,7 @@ Item {
 
       Label {
         Layout.fillWidth: true
-        text: "现场定位"
+        text: "当前位置"
         font.bold: true
         color: QfTheme.mainTextColor
       }
@@ -772,24 +773,38 @@ Item {
 
       RowLayout {
         Layout.fillWidth: true
+        spacing: 6
 
         Button {
           Layout.fillWidth: true
-          text: "复制坐标"
-          onClicked: plugin.copyCurrentPosition()
+          text: "定位到我"
+          onClicked: plugin.centerOnCurrentPosition()
         }
 
         Button {
           Layout.fillWidth: true
-          text: "当前位置新增点位"
+          text: "新增点位"
           onClicked: plugin.createAssetAtCurrentPosition()
         }
       }
 
-      Button {
+      RowLayout {
         Layout.fillWidth: true
-        text: "备份 / 导出项目"
-        onClicked: plugin.openProjectBackup()
+        spacing: 6
+
+        Button {
+          Layout.fillWidth: true
+          text: "附近点位"
+          enabled: !searchBusy
+          onClicked: plugin.loadNearbyKind("asset")
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "附近管线"
+          enabled: !searchBusy
+          onClicked: plugin.loadNearbyKind("pipeline")
+        }
       }
 
       Rectangle {
@@ -800,7 +815,7 @@ Item {
 
       Label {
         Layout.fillWidth: true
-        text: "查找设施 / 管线"
+        text: "搜索与筛选"
         font.bold: true
         color: QfTheme.mainTextColor
       }
@@ -919,13 +934,11 @@ Item {
           currentIndex: 2
         }
 
-        Button {
-          text: plugin.selectedSearchKind() === "pipeline" ? "附近管线" : "附近点位"
-          enabled: !searchBusy
-          onClicked: {
-            const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex];
-            plugin.loadNearbyObjects(item.value);
-          }
+        Label {
+          Layout.fillWidth: true
+          text: "附近查询范围"
+          color: QfTheme.secondaryTextColor
+          verticalAlignment: Text.AlignVCenter
         }
       }
 
@@ -1055,6 +1068,72 @@ Item {
                 onClicked: plugin.createAttachment(assetId, objectKind)
               }
             }
+          }
+        }
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: 6
+
+        Button {
+          Layout.fillWidth: true
+          text: "备份 / 导出"
+          onClicked: plugin.openProjectBackup()
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "高级功能"
+          onClicked: {
+            plugin.applyWorkerMode(true)
+            waterworksDialog.close()
+            mainWindow.displayToast("已进入高级模式；点击“水”按钮可返回维修人员模式")
+          }
+        }
+      }
+    }
+
+    Rectangle {
+      anchors.fill: parent
+      visible: !plugin.waterworksProjectReady
+      z: 10
+      color: QfTheme.mainBackgroundColor
+
+      ColumnLayout {
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 40, 420)
+        spacing: 14
+
+        Label {
+          Layout.fillWidth: true
+          text: "当前不是供水巡检项目"
+          font.bold: true
+          font.pixelSize: 20
+          horizontalAlignment: Text.AlignHCenter
+          color: QfTheme.mainTextColor
+        }
+
+        Label {
+          Layout.fillWidth: true
+          text: "维修人员不需要新建普通 GIS 项目。请打开已经准备好的供水巡检项目，打开后会直接进入地图和巡检功能。"
+          wrapMode: Text.WordWrap
+          horizontalAlignment: Text.AlignHCenter
+          color: QfTheme.secondaryTextColor
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "打开供水巡检项目"
+          onClicked: plugin.chooseWaterworksProject()
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "进入高级模式"
+          onClicked: {
+            plugin.applyWorkerMode(true)
+            waterworksDialog.close()
           }
         }
       }
