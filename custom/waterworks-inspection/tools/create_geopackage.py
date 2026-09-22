@@ -15,7 +15,7 @@ from pathlib import Path
 # GeoPackage SQLite application id ("GP10").
 APPLICATION_ID = 1196437808
 USER_VERSION = 10300
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "6"
 
 UUID_SQL = """(
   lower(hex(randomblob(4))) || '-' ||
@@ -148,6 +148,7 @@ CREATE TABLE pipelines (
   status TEXT NOT NULL DEFAULT 'normal'
     CHECK (status IN ('normal', 'attention', 'repair', 'disabled')),
   install_date DATE,
+  last_inspection_at DATETIME,
   note TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -156,7 +157,8 @@ CREATE TABLE pipelines (
 CREATE TABLE inspections (
   fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   id TEXT NOT NULL UNIQUE DEFAULT {UUID_SQL},
-  asset_id TEXT NOT NULL,
+  asset_id TEXT,
+  pipeline_id TEXT,
   inspected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   inspector TEXT,
   result TEXT NOT NULL DEFAULT 'normal'
@@ -166,13 +168,18 @@ CREATE TABLE inspections (
   action_taken TEXT,
   note TEXT,
   position_accuracy_m REAL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ck_inspection_one_parent CHECK (
+    (asset_id IS NOT NULL) +
+    (pipeline_id IS NOT NULL) = 1
+  )
 );
 
 CREATE TABLE repairs (
   fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   id TEXT NOT NULL UNIQUE DEFAULT {UUID_SQL},
-  asset_id TEXT NOT NULL,
+  asset_id TEXT,
+  pipeline_id TEXT,
   inspection_id TEXT,
   reported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   repaired_at DATETIME,
@@ -181,7 +188,11 @@ CREATE TABLE repairs (
   result TEXT NOT NULL DEFAULT 'unresolved'
     CHECK (result IN ('resolved', 'monitor', 'unresolved')),
   operator TEXT,
-  note TEXT
+  note TEXT,
+  CONSTRAINT ck_repair_one_parent CHECK (
+    (asset_id IS NOT NULL) +
+    (pipeline_id IS NOT NULL) = 1
+  )
 );
 
 CREATE TABLE attachments (
@@ -191,6 +202,7 @@ CREATE TABLE attachments (
   -- Exactly one parent is populated. We deliberately do not use ON DELETE
   -- CASCADE: historical media must survive accidental/administrative changes.
   asset_id TEXT,
+  pipeline_id TEXT,
   inspection_id TEXT,
   repair_id TEXT,
 
@@ -209,6 +221,7 @@ CREATE TABLE attachments (
 
   CONSTRAINT ck_attachment_one_parent CHECK (
     (asset_id IS NOT NULL) +
+    (pipeline_id IS NOT NULL) +
     (inspection_id IS NOT NULL) +
     (repair_id IS NOT NULL) = 1
   ),
@@ -258,12 +271,15 @@ CREATE INDEX idx_pipelines_code ON pipelines(code);
 CREATE INDEX idx_pipelines_status ON pipelines(status);
 
 CREATE INDEX idx_inspections_asset ON inspections(asset_id);
+CREATE INDEX idx_inspections_pipeline ON inspections(pipeline_id);
 CREATE INDEX idx_inspections_time ON inspections(inspected_at);
 
 CREATE INDEX idx_repairs_asset ON repairs(asset_id);
+CREATE INDEX idx_repairs_pipeline ON repairs(pipeline_id);
 CREATE INDEX idx_repairs_inspection ON repairs(inspection_id);
 
 CREATE INDEX idx_attachments_asset ON attachments(asset_id);
+CREATE INDEX idx_attachments_pipeline ON attachments(pipeline_id);
 CREATE INDEX idx_attachments_inspection ON attachments(inspection_id);
 CREATE INDEX idx_attachments_repair ON attachments(repair_id);
 
@@ -320,7 +336,7 @@ BEGIN
 END;
 
 
-CREATE TRIGGER trg_inspection_insert_updates_asset
+CREATE TRIGGER trg_inspection_insert_updates_parent
 AFTER INSERT ON inspections
 FOR EACH ROW
 BEGIN
@@ -331,10 +347,18 @@ BEGIN
     WHERE asset_id = NEW.asset_id
   )
   WHERE id = NEW.asset_id;
+
+  UPDATE pipelines
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE pipeline_id = NEW.pipeline_id
+  )
+  WHERE id = NEW.pipeline_id;
 END;
 
-CREATE TRIGGER trg_inspection_update_updates_asset
-AFTER UPDATE OF asset_id, inspected_at ON inspections
+CREATE TRIGGER trg_inspection_update_updates_parent
+AFTER UPDATE OF asset_id, pipeline_id, inspected_at ON inspections
 FOR EACH ROW
 BEGIN
   UPDATE assets_point
@@ -352,9 +376,25 @@ BEGIN
     WHERE asset_id = NEW.asset_id
   )
   WHERE id = NEW.asset_id;
+
+  UPDATE pipelines
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE pipeline_id = OLD.pipeline_id
+  )
+  WHERE id = OLD.pipeline_id;
+
+  UPDATE pipelines
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE pipeline_id = NEW.pipeline_id
+  )
+  WHERE id = NEW.pipeline_id;
 END;
 
-CREATE TRIGGER trg_inspection_delete_updates_asset
+CREATE TRIGGER trg_inspection_delete_updates_parent
 AFTER DELETE ON inspections
 FOR EACH ROW
 BEGIN
@@ -365,6 +405,14 @@ BEGIN
     WHERE asset_id = OLD.asset_id
   )
   WHERE id = OLD.asset_id;
+
+  UPDATE pipelines
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE pipeline_id = OLD.pipeline_id
+  )
+  WHERE id = OLD.pipeline_id;
 END;
 
 
@@ -389,7 +437,7 @@ BEGIN
 END;
 
 
-CREATE TRIGGER trg_inspection_insert_updates_asset_status
+CREATE TRIGGER trg_inspection_insert_updates_parent_status
 AFTER INSERT ON inspections
 FOR EACH ROW
 BEGIN
@@ -407,10 +455,25 @@ BEGIN
     ELSE status
   END
   WHERE id = NEW.asset_id;
+
+  UPDATE pipelines
+  SET status = CASE
+    WHEN NEW.result = 'repair' THEN 'repair'
+    WHEN NEW.result = 'attention' AND status <> 'repair' THEN 'attention'
+    WHEN NEW.result = 'normal'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE pipeline_id = NEW.pipeline_id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'normal'
+    ELSE status
+  END
+  WHERE id = NEW.pipeline_id;
 END;
 
-CREATE TRIGGER trg_inspection_update_updates_asset_status
-AFTER UPDATE OF result, asset_id ON inspections
+CREATE TRIGGER trg_inspection_update_updates_parent_status
+AFTER UPDATE OF result, asset_id, pipeline_id ON inspections
 FOR EACH ROW
 BEGIN
   UPDATE assets_point
@@ -427,9 +490,24 @@ BEGIN
     ELSE status
   END
   WHERE id = NEW.asset_id;
+
+  UPDATE pipelines
+  SET status = CASE
+    WHEN NEW.result = 'repair' THEN 'repair'
+    WHEN NEW.result = 'attention' AND status <> 'repair' THEN 'attention'
+    WHEN NEW.result = 'normal'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE pipeline_id = NEW.pipeline_id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'normal'
+    ELSE status
+  END
+  WHERE id = NEW.pipeline_id;
 END;
 
-CREATE TRIGGER trg_repair_insert_updates_asset_status
+CREATE TRIGGER trg_repair_insert_updates_parent_status
 AFTER INSERT ON repairs
 FOR EACH ROW
 BEGIN
@@ -448,10 +526,26 @@ BEGIN
     ELSE status
   END
   WHERE id = NEW.asset_id;
+
+  UPDATE pipelines
+  SET status = CASE
+    WHEN NEW.result = 'unresolved' THEN 'repair'
+    WHEN NEW.result = 'monitor' AND status <> 'repair' THEN 'attention'
+    WHEN NEW.result = 'resolved'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE pipeline_id = NEW.pipeline_id
+          AND id <> NEW.id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'attention'
+    ELSE status
+  END
+  WHERE id = NEW.pipeline_id;
 END;
 
-CREATE TRIGGER trg_repair_update_updates_asset_status
-AFTER UPDATE OF result, asset_id ON repairs
+CREATE TRIGGER trg_repair_update_updates_parent_status
+AFTER UPDATE OF result, asset_id, pipeline_id ON repairs
 FOR EACH ROW
 BEGIN
   UPDATE assets_point
@@ -469,6 +563,22 @@ BEGIN
     ELSE status
   END
   WHERE id = NEW.asset_id;
+
+  UPDATE pipelines
+  SET status = CASE
+    WHEN NEW.result = 'unresolved' THEN 'repair'
+    WHEN NEW.result = 'monitor' THEN 'attention'
+    WHEN NEW.result = 'resolved'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE pipeline_id = NEW.pipeline_id
+          AND id <> NEW.id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'attention'
+    ELSE status
+  END
+  WHERE id = NEW.pipeline_id;
 END;
 """
 
