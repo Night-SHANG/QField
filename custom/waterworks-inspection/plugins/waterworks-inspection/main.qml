@@ -887,6 +887,32 @@ Item {
     }
   }
 
+  function focusedBusinessObjectKind() {
+    if (!featureForm || !featureForm.selection || !featureForm.selection.focusedLayer) {
+      return "";
+    }
+    const layerName = String(featureForm.selection.focusedLayer.name || "");
+    for (let i = 0; i < assetLayerNames.length; i++) {
+      if (layerName === assetLayerNames[i]) {
+        return "asset";
+      }
+    }
+    for (let i = 0; i < pipelineLayerNames.length; i++) {
+      if (layerName === pipelineLayerNames[i]) {
+        return "pipeline";
+      }
+    }
+    return "";
+  }
+
+  function focusedBusinessObjectId() {
+    if (!featureForm || !featureForm.selection || !featureForm.selection.focusedFeature) {
+      return "";
+    }
+    const value = featureForm.selection.focusedFeature.attribute("id");
+    return value === null || value === undefined ? "" : String(value);
+  }
+
   function featureForObjectId(objectKind, objectId) {
     const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
     if (!layer || !objectId) {
@@ -1610,7 +1636,10 @@ Item {
     objectName: "waterworksEditModeButton"
     parent: mainWindow.contentItem
     z: 90
-    visible: plugin.waterworksProjectReady && !assetEntryDialog.visible && !pipelineEntryDialog.visible
+    visible: plugin.waterworksProjectReady &&
+             (!featureForm || featureForm.state === "Hidden") &&
+             (!overlayFeatureFormDrawer || !overlayFeatureFormDrawer.opened) &&
+             !assetEntryDialog.visible && !pipelineEntryDialog.visible
     anchors {
       top: parent.top
       right: parent.right
@@ -1628,6 +1657,8 @@ Item {
     parent: mainWindow.contentItem
     z: 90
     visible: plugin.waterworksProjectReady && !browserDrawer.opened && !addDrawer.opened && !moreDrawer.opened &&
+             (!featureForm || featureForm.state === "Hidden") &&
+             (!overlayFeatureFormDrawer || !overlayFeatureFormDrawer.opened) &&
              !assetEntryDialog.visible && !pipelineEntryDialog.visible
     anchors {
       right: parent.right
@@ -1644,7 +1675,11 @@ Item {
     objectName: "waterworksBottomActionBar"
     parent: mainWindow.contentItem
     z: 80
-    visible: plugin.waterworksProjectReady && !assetEntryDialog.visible && !pipelineEntryDialog.visible
+    visible: plugin.waterworksProjectReady &&
+             !browserDrawer.opened && !addDrawer.opened && !moreDrawer.opened &&
+             (!featureForm || featureForm.state === "Hidden") &&
+             (!overlayFeatureFormDrawer || !overlayFeatureFormDrawer.opened) &&
+             !assetEntryDialog.visible && !pipelineEntryDialog.visible
     anchors {
       left: parent.left
       right: parent.right
@@ -1688,6 +1723,59 @@ Item {
         Layout.fillWidth: true
         text: "更多"
         onClicked: moreDrawer.open()
+      }
+    }
+  }
+
+  Rectangle {
+    id: focusedObjectActionBar
+    objectName: "waterworksFocusedObjectActionBar"
+    parent: mainWindow.contentItem
+    z: 95
+    visible: workerAppSettings.editEnabled &&
+             featureForm && featureForm.state === "FeatureForm" &&
+             plugin.focusedBusinessObjectKind().length > 0 &&
+             plugin.focusedBusinessObjectId().length > 0
+    anchors {
+      left: parent.left
+      right: parent.right
+      bottom: parent.bottom
+      bottomMargin: featureForm ? featureForm.height + 6 : 6
+      leftMargin: mainWindow.sceneLeftMargin + 8
+      rightMargin: mainWindow.sceneRightMargin + 8
+    }
+    height: 48
+    radius: 8
+    color: QfTheme.mainBackgroundColor
+    border.color: QfTheme.controlBorderColor
+
+    RowLayout {
+      anchors.fill: parent
+      anchors.margins: 4
+      spacing: 4
+
+      Button {
+        Layout.fillWidth: true
+        text: "编辑"
+        onClicked: plugin.openObject(plugin.focusedBusinessObjectKind(), plugin.focusedBusinessObjectId(), true)
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "巡检"
+        onClicked: plugin.createInspection(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "维修"
+        onClicked: plugin.createRepair(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "附件"
+        onClicked: plugin.createAttachment(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
       }
     }
   }
