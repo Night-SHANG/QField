@@ -3,12 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-
 PLUGIN = (
-    Path(__file__).resolve().parents[1]
-    / "plugins"
-    / "wubao-waterworks"
-    / "main.qml"
+    Path(__file__).resolve().parents[1] / "plugins" / "wubao-waterworks" / "main.qml"
 )
 
 
@@ -34,14 +30,15 @@ class PluginContractTests(unittest.TestCase):
             self.assertNotIn(obsolete, self.text)
 
     def test_field_workflows_reuse_qfield_forms(self) -> None:
-        self.assertIn('iface.findItemByObjectName("overlayFeatureFormDrawer")', self.text)
+        self.assertIn(
+            'iface.findItemByObjectName("overlayFeatureFormDrawer")', self.text
+        )
         self.assertIn('iface.findItemByObjectName("featureForm")', self.text)
-        self.assertIn('featureForm.model.setFeatures(layer,', self.text)
+        self.assertIn("featureForm.model.setFeatures(layer,", self.text)
 
     def test_nearby_lookup_is_meter_based(self) -> None:
         self.assertIn("EPSG:32649", self.text)
         self.assertIn("nearbyRadiusMeters", self.text)
-
 
     def test_navigation_reuses_qfield_navigation(self) -> None:
         self.assertIn('iface.findItemByObjectName("navigation")', self.text)
@@ -56,13 +53,13 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("'attention', 'repair'", self.text)
 
     def test_repair_workflow_reuses_qfield_add_form(self) -> None:
-        self.assertIn('readonly property var repairLayerNames', self.text)
-        self.assertIn('function createRepair(assetId)', self.text)
+        self.assertIn("readonly property var repairLayerNames", self.text)
+        self.assertIn("function createRepair(assetId)", self.text)
         self.assertIn('feature.setAttribute("asset_id", assetId)', self.text)
 
     def test_search_results_include_distance_role(self) -> None:
         self.assertIn('"assetDistance":', self.text)
-        self.assertIn('required property int assetDistance', self.text)
+        self.assertIn("required property int assetDistance", self.text)
 
     def test_field_capture_surfaces_accuracy_warning(self) -> None:
         self.assertIn("accuracyWarningMeters: 15", self.text)
