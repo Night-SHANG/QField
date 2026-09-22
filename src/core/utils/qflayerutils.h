@@ -18,6 +18,7 @@
 #define QFLAYERUTILS_H
 
 #include <QObject>
+#include <QVariantMap>
 #include <qgis.h>
 #include <qgstextformat.h>
 #include <qgsvectorlayer.h>
