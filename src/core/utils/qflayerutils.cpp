@@ -599,19 +599,22 @@ bool QfLayerUtils::deleteFeature( QgsProject *project, QgsVectorLayer *layer, co
     isSuccess = false;
   }
 
-  if ( !flushBuffer && !isSuccess )
+  // If this operation opened the edit session itself, a failed provider
+  // commit must restore the in-memory layer immediately. Otherwise the feature
+  // disappears from the map until the project is reloaded even though the
+  // database rejected the deletion.
+  if ( !isSuccess && ( !wasEditing || !flushBuffer ) )
   {
     const QList<QgsVectorLayer *> constHandledLayers = deleteContext.handledLayers();
     for ( QgsVectorLayer *vl : constHandledLayers )
-      if ( vl != layer )
+    {
+      if ( vl != layer && vl->isEditable() && !vl->rollBack() )
       {
-        if ( !vl->rollBack() )
-        {
-          QgsMessageLog::logMessage( tr( "Cannot rollback layer changes in layer %1" ).arg( vl->name() ), "QField", Qgis::Critical );
-        }
+        QgsMessageLog::logMessage( tr( "Cannot rollback layer changes in layer %1" ).arg( vl->name() ), "QField", Qgis::Critical );
       }
+    }
 
-    if ( !layer->rollBack() )
+    if ( layer->isEditable() && !layer->rollBack() )
     {
       QgsMessageLog::logMessage( tr( "Cannot rollback layer changes in layer %1" ).arg( layer->name() ), "QField", Qgis::Critical );
     }
