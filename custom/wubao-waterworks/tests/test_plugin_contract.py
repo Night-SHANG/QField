@@ -50,6 +50,19 @@ class PluginContractTests(unittest.TestCase):
     def test_search_iterators_are_closed(self) -> None:
         self.assertGreaterEqual(self.text.count("iterator.close()"), 3)
 
+    def test_problem_filter_covers_attention_and_repair(self) -> None:
+        self.assertIn('value: "problem"', self.text)
+        self.assertIn('\"status\" IN (\'attention\', \'repair\')', self.text)
+
+    def test_repair_workflow_reuses_qfield_add_form(self) -> None:
+        self.assertIn('readonly property var repairLayerNames', self.text)
+        self.assertIn('function createRepair(assetId)', self.text)
+        self.assertIn('feature.setAttribute("asset_id", assetId)', self.text)
+
+    def test_search_results_include_distance_role(self) -> None:
+        self.assertIn('"assetDistance":', self.text)
+        self.assertIn('required property int assetDistance', self.text)
+
     def test_inspection_accuracy_checks_validity(self) -> None:
         self.assertIn("info.haccValid", self.text)
 
