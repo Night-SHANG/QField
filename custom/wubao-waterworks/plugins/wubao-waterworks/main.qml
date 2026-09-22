@@ -24,6 +24,7 @@ Item {
   readonly property var attachmentLayerNames: ["附件", "attachments"]
   property bool searchBusy: false
   property int nearbyRadiusMeters: 500
+  property real accuracyWarningMeters: 15
 
   Component.onCompleted: {
     iface.addItemToPluginsToolbar(waterworksButton)
@@ -80,7 +81,11 @@ Item {
       return "正在等待有效定位"
     }
 
-    return Number(info.latitude).toFixed(7) + ", " + Number(info.longitude).toFixed(7)
+    let text = Number(info.latitude).toFixed(7) + ", " + Number(info.longitude).toFixed(7)
+    if (info.haccValid) {
+      text += "  ·  精度 ±" + Math.round(Number(info.hacc)) + " m"
+    }
+    return text
   }
 
   function copyCurrentPosition() {
@@ -371,6 +376,16 @@ Item {
     if (!positioning.projectedPosition) {
       mainWindow.displayToast("无法取得项目坐标")
       return
+    }
+
+    if (
+      info.haccValid &&
+      Number(info.hacc) > accuracyWarningMeters
+    ) {
+      mainWindow.displayToast(
+        "当前定位精度约 ±" + Math.round(Number(info.hacc)) +
+        " 米，建议到开阔位置等待定位稳定后再采点"
+      )
     }
 
     const projected = positioning.projectedPosition
