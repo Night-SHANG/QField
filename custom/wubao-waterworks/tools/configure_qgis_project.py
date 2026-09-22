@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import map_sources
@@ -479,10 +480,10 @@ def main() -> int:
     )
     parser.add_argument(
         "--tianditu-token",
-        default=None,
+        default=os.environ.get("TDT_SHAANXI_TOKEN"),
         help=(
-            "approved TianDiTu Shaanxi service token; omitted tokens are never "
-            "read from source control"
+            "approved TianDiTu Shaanxi service token; defaults to the "
+            "TDT_SHAANXI_TOKEN environment variable"
         ),
     )
     args = parser.parse_args()
