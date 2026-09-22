@@ -435,12 +435,9 @@ def create_geopackage(output: Path, *, force: bool = False) -> Path:
 
         integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
         if integrity != "ok":
-            raise RuntimeError(
-                f"GeoPackage integrity check failed: {integrity}"
-            )
+            raise RuntimeError(f"GeoPackage integrity check failed: {integrity}")
 
-        missing = connection.execute(
-            """
+        missing = connection.execute("""
             SELECT name
             FROM sqlite_master
             WHERE type='table'
@@ -448,8 +445,7 @@ def create_geopackage(output: Path, *, force: bool = False) -> Path:
                 'assets_point', 'pipelines', 'inspections',
                 'repairs', 'attachments'
               )
-            """
-        ).fetchall()
+            """).fetchall()
         if len(missing) != 5:
             raise RuntimeError("Required business tables were not created")
 
