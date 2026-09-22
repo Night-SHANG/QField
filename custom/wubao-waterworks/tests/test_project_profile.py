@@ -47,6 +47,31 @@ class ProjectProfileTests(unittest.TestCase):
             )
 
 
+    def test_default_view_extent_is_valid(self) -> None:
+        xmin, ymin, xmax, ymax = profile.DEFAULT_VIEW_EXTENT
+        self.assertLess(xmin, xmax)
+        self.assertLess(ymin, ymax)
+        self.assertGreater(xmin, 100)
+        self.assertLess(xmax, 120)
+        self.assertGreater(ymin, 30)
+        self.assertLess(ymax, 45)
+
+    def test_layer_groups_cover_all_business_layers_once(self) -> None:
+        grouped = [
+            layer
+            for layers in profile.LAYER_GROUPS.values()
+            for layer in layers
+        ]
+        self.assertEqual(set(grouped), set(profile.LAYERS))
+        self.assertEqual(len(grouped), len(set(grouped)))
+
+    def test_repair_results_are_explicit(self) -> None:
+        values = {
+            next(iter(item.values()))
+            for item in profile.VALUE_MAPS[("repairs", "result")]
+        }
+        self.assertEqual(values, {"resolved", "monitor", "unresolved"})
+
     def test_every_asset_type_has_a_map_symbol(self) -> None:
         stored_types = {
             next(iter(item.values()))
