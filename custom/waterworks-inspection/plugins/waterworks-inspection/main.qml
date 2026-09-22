@@ -139,7 +139,7 @@ Item {
   function businessFieldAliases(tableName) {
     const aliases = {
       "asset_types": {"code":"类型代码","label":"类型名称","symbol_shape":"符号形状","symbol_color":"符号颜色","symbol_size":"符号大小","sort_order":"排序","active":"启用"},
-      "assets_point": {"code":"设施编号","name":"点位名称","asset_type":"设施类型","status":"状态","pipeline_id":"所属管线","area_name":"所属片区","address_hint":"位置描述","install_date":"安装日期","last_inspection_at":"最近巡检","note":"备注","created_at":"创建时间","updated_at":"更新时间"},
+      "assets_point": {"code":"设施编号","name":"点位名称","asset_type":"设施类型 *","status":"状态","pipeline_id":"所属管线","area_name":"所属片区","address_hint":"位置描述","install_date":"安装日期","last_inspection_at":"最近巡检","note":"备注","created_at":"创建时间","updated_at":"更新时间"},
       "pipelines": {"code":"管线编号","name":"管线名称","pipe_type":"管线类型","material":"材质","diameter_mm":"管径（mm）","pressure_zone":"压力分区","status":"状态","install_date":"安装日期","last_inspection_at":"最近巡检","note":"备注","created_at":"创建时间","updated_at":"更新时间"},
       "inspections": {"asset_id":"所属设施","pipeline_id":"所属管线","inspected_at":"巡检时间","inspector":"巡检人员","result":"巡检结果","pressure_value":"压力值","issue":"发现问题","action_taken":"现场处理","note":"备注","position_accuracy_m":"定位精度（m）","created_at":"创建时间"},
       "repairs": {"asset_id":"所属设施","pipeline_id":"所属管线","inspection_id":"来源巡检","reported_at":"报修时间","repaired_at":"完成时间","repair_type":"维修类型","description":"维修内容","result":"处理结果","operator":"维修人员","note":"备注"},
@@ -170,8 +170,8 @@ Item {
 
     const hiddenFields = {
       "asset_types": ["fid"],
-      "assets_point": ["fid", "id", "created_at", "updated_at"],
-      "pipelines": ["fid", "id", "created_at", "updated_at"],
+      "assets_point": ["fid", "id", "pipeline_id", "last_inspection_at", "created_at", "updated_at"],
+      "pipelines": ["fid", "id", "last_inspection_at", "created_at", "updated_at"],
       "inspections": ["fid", "id", "asset_id", "pipeline_id", "created_at"],
       "repairs": ["fid", "id", "asset_id", "pipeline_id", "inspection_id"],
       "attachments": ["fid", "id", "asset_id", "pipeline_id", "inspection_id", "repair_id", "created_at"]
@@ -673,10 +673,6 @@ Item {
       clauses.push("\"status\" = '" + escapeExpressionString(statusValue) + "'");
     }
 
-    if (searchUninspectedOnly && searchUninspectedOnly.checked) {
-      clauses.push("\"last_inspection_at\" IS NULL");
-    }
-
     return clauses.length > 0 ? clauses.join(" AND ") : "1 = 1";
   }
 
@@ -1159,10 +1155,15 @@ Item {
       return;
     }
 
-    const feature = QfFeatureUtils.createFeature(layer, pendingAssetGeometry);
     const typeItem = assetTypeOptions.get(assetEntryType.currentIndex);
+    if (!typeItem || !typeItem.value) {
+      mainWindow.displayToast("请选择设施类型（* 必填）");
+      return;
+    }
+
+    const feature = QfFeatureUtils.createFeature(layer, pendingAssetGeometry);
     feature.setAttribute("id", assetId);
-    feature.setAttribute("asset_type", typeItem && typeItem.value ? String(typeItem.value) : "other");
+    feature.setAttribute("asset_type", String(typeItem.value));
     feature.setAttribute("name", assetEntryName.text.trim());
     feature.setAttribute("code", assetEntryCode.text.trim());
     feature.setAttribute("area_name", assetEntryArea.text.trim());
@@ -1655,7 +1656,7 @@ Item {
 
     onOpened: {
       loadAssetTypeOptions();
-      assetEntryType.currentIndex = assetTypeOptions.count > 1 ? 1 : 0;
+      assetEntryType.currentIndex = 0;
       assetEntryName.clear();
       assetEntryCode.clear();
       assetEntryArea.clear();
@@ -1674,11 +1675,25 @@ Item {
       anchors.fill: parent
       spacing: 8
 
+      Label {
+        Layout.fillWidth: true
+        text: "设施类型 *"
+        font.bold: true
+        color: QfTheme.mainTextColor
+      }
+
       ComboBox {
         id: assetEntryType
         Layout.fillWidth: true
         model: assetTypeOptions
         textRole: "text"
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "* 为必填；其余信息不知道时可以先不填"
+        color: QfTheme.secondaryTextColor
+        font.pixelSize: 12
       }
 
       TextField {
@@ -1702,7 +1717,7 @@ Item {
       TextField {
         id: assetEntryAddress
         Layout.fillWidth: true
-        placeholderText: "位置描述，例如：村口向东 20 米"
+        placeholderText: "位置描述（可选），例如：村口向东 20 米"
       }
 
       RowLayout {
@@ -1777,6 +1792,13 @@ Item {
       anchors.fill: parent
       spacing: 8
 
+      Label {
+        Layout.fillWidth: true
+        text: "管线位置已经画好。下面参数均为可选，不知道时可以直接保存。"
+        wrapMode: Text.WordWrap
+        color: QfTheme.secondaryTextColor
+      }
+
       TextField {
         id: pipelineEntryName
         Layout.fillWidth: true
@@ -1792,20 +1814,20 @@ Item {
       TextField {
         id: pipelineEntryDiameter
         Layout.fillWidth: true
-        placeholderText: "管径，例如 300"
+        placeholderText: "管径（可选），例如 300"
         inputMethodHints: Qt.ImhFormattedNumbersOnly
       }
 
       TextField {
         id: pipelineEntryMaterial
         Layout.fillWidth: true
-        placeholderText: "材质，例如 PE / 球墨铸铁"
+        placeholderText: "材质（可选），例如 PE / 球墨铸铁"
       }
 
       TextField {
         id: pipelineEntryType
         Layout.fillWidth: true
-        placeholderText: "管线类型，例如 主管 / 支管"
+        placeholderText: "管线类型（可选），例如 主管 / 支管"
       }
 
       TextField {
@@ -1905,8 +1927,7 @@ Item {
           Layout.fillWidth: true
           visible: assetDetail.length > 0 || assetLastInspection.length > 0
           text: (assetDetail.length > 0 ? assetDetail : "") +
-                (assetDetail.length > 0 && assetLastInspection.length > 0 ? "  ·  " : "") +
-                (assetLastInspection.length > 0 ? "最近巡检 " + assetLastInspection : "")
+                ""
           color: QfTheme.secondaryTextColor
           elide: Text.ElideRight
         }
@@ -1950,18 +1971,6 @@ Item {
             Layout.fillWidth: true
             text: "编辑"
             onClicked: plugin.openObject(objectKind, assetId, true)
-          }
-
-          Button {
-            Layout.fillWidth: true
-            text: "巡检"
-            onClicked: plugin.createInspection(assetId, objectKind)
-          }
-
-          Button {
-            Layout.fillWidth: true
-            text: "维修"
-            onClicked: plugin.createRepair(assetId, objectKind)
           }
 
           Button {
@@ -2162,18 +2171,6 @@ Item {
           Layout.fillWidth: true
           text: "编辑"
           onClicked: plugin.openObject(plugin.focusedBusinessObjectKind(), plugin.focusedBusinessObjectId(), true)
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: "巡检"
-          onClicked: plugin.createInspection(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: "维修"
-          onClicked: plugin.createRepair(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
         }
 
         Button {
@@ -2504,14 +2501,6 @@ Item {
           currentIndex: 0
           onCurrentIndexChanged: assetSearchResults.clear()
         }
-      }
-
-      CheckBox {
-        id: searchUninspectedOnly
-        Layout.fillWidth: true
-        visible: plugin.queryMode === "search" && plugin.queryFiltersExpanded
-        text: "仅看从未巡检"
-        onToggled: assetSearchResults.clear()
       }
 
       Label {
