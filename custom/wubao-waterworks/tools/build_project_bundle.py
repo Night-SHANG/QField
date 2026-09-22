@@ -30,15 +30,11 @@ def copy_offline_basemaps(
 
         suffix = source.suffix.lower()
         if suffix not in profile.SUPPORTED_OFFLINE_BASEMAP_EXTENSIONS:
-            raise ValueError(
-                f"Unsupported offline basemap extension: {suffix}"
-            )
+            raise ValueError(f"Unsupported offline basemap extension: {suffix}")
 
         target = destination / source.name
         if target.exists():
-            raise FileExistsError(
-                f"Duplicate offline basemap file name: {target.name}"
-            )
+            raise FileExistsError(f"Duplicate offline basemap file name: {target.name}")
         shutil.copy2(source, target)
         copied.append(target)
 
@@ -106,10 +102,7 @@ def main() -> int:
     parser.add_argument(
         "--tianditu-token",
         default=os.environ.get("TDT_SHAANXI_TOKEN"),
-        help=(
-            "approved TianDiTu Shaanxi token; defaults to "
-            "TDT_SHAANXI_TOKEN"
-        ),
+        help=("approved TianDiTu Shaanxi token; defaults to " "TDT_SHAANXI_TOKEN"),
     )
     parser.add_argument(
         "--offline-basemap",
