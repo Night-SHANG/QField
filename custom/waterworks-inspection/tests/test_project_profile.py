@@ -28,9 +28,13 @@ class ProjectProfileTests(unittest.TestCase):
 
     def test_form_relations_exist(self) -> None:
         known = {relation[0] for relation in profile.RELATIONS}
-        for table, relation_ids in profile.FORM_RELATIONS.items():
-            self.assertIn(table, profile.LAYERS)
-            self.assertTrue(set(relation_ids).issubset(known))
+        for relation_map in (
+            profile.FORM_ATTACHMENT_RELATIONS,
+            profile.FORM_HISTORY_RELATIONS,
+        ):
+            for table, relation_ids in relation_map.items():
+                self.assertIn(table, profile.LAYERS)
+                self.assertTrue(set(relation_ids).issubset(known))
 
     def test_value_maps_do_not_duplicate_stored_values(self) -> None:
         for key, mapping in profile.VALUE_MAPS.items():
@@ -115,15 +119,42 @@ class ProjectProfileTests(unittest.TestCase):
             }.issubset(relation_ids)
         )
         self.assertTrue(
-            {
-                "pipeline_inspections",
-                "pipeline_repairs",
-                "pipeline_attachments",
-            }.issubset(set(profile.FORM_RELATIONS["pipelines"]))
+            {"pipeline_inspections", "pipeline_repairs"}.issubset(
+                set(profile.FORM_HISTORY_RELATIONS["pipelines"])
+            )
+        )
+        self.assertIn(
+            "pipeline_attachments",
+            profile.FORM_ATTACHMENT_RELATIONS["pipelines"],
         )
         self.assertIn(("inspections", "pipeline_id"), profile.RELATION_REFERENCE_FIELDS)
         self.assertIn(("repairs", "pipeline_id"), profile.RELATION_REFERENCE_FIELDS)
         self.assertIn(("attachments", "pipeline_id"), profile.RELATION_REFERENCE_FIELDS)
+
+    def test_field_forms_hide_system_maintained_status_fields(self) -> None:
+        self.assertNotIn("status", profile.FORM_FIELDS["assets_point"])
+        self.assertNotIn("last_inspection_at", profile.FORM_FIELDS["assets_point"])
+        self.assertNotIn("pipeline_id", profile.FORM_FIELDS["assets_point"])
+        self.assertNotIn("status", profile.FORM_FIELDS["pipelines"])
+        self.assertNotIn("last_inspection_at", profile.FORM_FIELDS["pipelines"])
+
+    def test_field_forms_surface_attachments_separately_from_history(self) -> None:
+        self.assertEqual(
+            profile.FORM_ATTACHMENT_RELATIONS["assets_point"],
+            ["asset_attachments"],
+        )
+        self.assertEqual(
+            profile.FORM_ATTACHMENT_RELATIONS["pipelines"],
+            ["pipeline_attachments"],
+        )
+        self.assertNotIn(
+            "asset_attachments",
+            profile.FORM_HISTORY_RELATIONS["assets_point"],
+        )
+        self.assertNotIn(
+            "pipeline_attachments",
+            profile.FORM_HISTORY_RELATIONS["pipelines"],
+        )
 
     def test_attachment_widgets_use_relative_storage(self) -> None:
         self.assertEqual(
