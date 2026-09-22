@@ -9,6 +9,8 @@ on:
       - 'custom/waterworks-inspection/**'
       - 'CMakeLists.txt'
       - 'src/app/CMakeLists.txt'
+      - 'src/app/qml/QgisMobileapp.qml'
+      - 'src/app/qml/QfWelcomeScreen.qml'
       - '.github/workflows/waterworks-inspection-preflight.yml'
       - '.github/workflows/waterworks-inspection-android.yml'
   pull_request:
@@ -16,6 +18,8 @@ on:
       - 'custom/waterworks-inspection/**'
       - 'CMakeLists.txt'
       - 'src/app/CMakeLists.txt'
+      - 'src/app/qml/QgisMobileapp.qml'
+      - 'src/app/qml/QfWelcomeScreen.qml'
       - '.github/workflows/waterworks-inspection-preflight.yml'
       - '.github/workflows/waterworks-inspection-android.yml'
   workflow_dispatch:
@@ -104,6 +108,16 @@ jobs:
 
           grep -q 'APP_THEME_PATH' src/app/CMakeLists.txt || {
             echo "::error::Custom theme build hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'objectName: "gnssButton"' src/app/qml/QgisMobileapp.qml || {
+            echo "::error::GNSS button plugin hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'objectName: "welcomeScreen"' src/app/qml/QfWelcomeScreen.qml || {
+            echo "::error::Welcome screen plugin hook is missing"
             failures=$((failures + 1))
           }
 
