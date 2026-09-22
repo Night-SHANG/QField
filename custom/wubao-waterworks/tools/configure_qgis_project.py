@@ -197,9 +197,7 @@ def add_tianditu_vector_map(api, project, token: str | None):
         elif isinstance(updated, tuple) and updated:
             encoded = updated[0]
     except Exception as exc:
-        print(
-            f"warning: unable to resolve TianDiTu vector sources: {exc}"
-        )
+        print(f"warning: unable to resolve TianDiTu vector sources: {exc}")
         return None
 
     layer = QgsVectorTileLayer(encoded, "天地图·陕西 标准地图")
@@ -292,13 +290,9 @@ def configure_map_style(api, layers):
             QgsSymbolLayer.Property.PropertyStrokeColor,
             QgsProperty.fromExpression(status_expression),
         )
-        categories.append(
-            QgsRendererCategory(value, symbol, config["label"])
-        )
+        categories.append(QgsRendererCategory(value, symbol, config["label"]))
 
-    asset_layer.setRenderer(
-        QgsCategorizedSymbolRenderer("asset_type", categories)
-    )
+    asset_layer.setRenderer(QgsCategorizedSymbolRenderer("asset_type", categories))
 
     label_settings = QgsPalLayerSettings()
     label_settings.fieldName = profile.ASSET_LABEL_EXPRESSION
@@ -333,9 +327,7 @@ def configure_map_style(api, layers):
         QgsSymbolLayer.Property.PropertyStrokeColor,
         QgsProperty.fromExpression(status_expression),
     )
-    layers["pipelines"].setRenderer(
-        QgsSingleSymbolRenderer(pipeline_symbol)
-    )
+    layers["pipelines"].setRenderer(QgsSingleSymbolRenderer(pipeline_symbol))
 
 
 def add_offline_basemap(api, project, path: Path):
@@ -433,9 +425,10 @@ def configure_relations(api, project, layers):
         manager.addRelation(relation)
         relations[relation_id] = relation
 
-    for (table, field_name), (relation_id, allow_null) in (
-        profile.RELATION_REFERENCE_FIELDS.items()
-    ):
+    for (table, field_name), (
+        relation_id,
+        allow_null,
+    ) in profile.RELATION_REFERENCE_FIELDS.items():
         config = {
             "Relation": relation_id,
             "AllowNULL": allow_null,
@@ -483,15 +476,14 @@ def configure_forms(api, layers, relations):
             )
 
         if table == "attachments":
-            for field_name, (media_type, label) in (
-                profile.ATTACHMENT_MEDIA_FIELDS.items()
-            ):
+            for field_name, (
+                media_type,
+                label,
+            ) in profile.ATTACHMENT_MEDIA_FIELDS.items():
                 media_group = QgsAttributeEditorContainer(label, details)
                 media_group.setVisibilityExpression(
                     QgsOptionalExpression(
-                        QgsExpression(
-                            f'"media_type" = \'{media_type}\''
-                        )
+                        QgsExpression(f"\"media_type\" = '{media_type}'")
                     )
                 )
                 media_group.addChildElement(
@@ -555,9 +547,7 @@ def build_project(
         )
         offline_layers = []
         for offline_basemap in offline_basemaps or []:
-            offline_layers.append(
-                add_offline_basemap(api, project, offline_basemap)
-            )
+            offline_layers.append(add_offline_basemap(api, project, offline_basemap))
         configure_project_view_and_tree(
             api,
             project,
@@ -600,9 +590,7 @@ def main() -> int:
         action="append",
         default=[],
         type=Path,
-        help=(
-            "local MBTiles/GeoTIFF/COG basemap; may be supplied more than once"
-        ),
+        help=("local MBTiles/GeoTIFF/COG basemap; may be supplied more than once"),
     )
     parser.add_argument(
         "--tianditu-token",
