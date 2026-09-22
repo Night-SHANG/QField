@@ -27,6 +27,7 @@ Popup {
   property bool captureLoaderActivated: false
 
   property bool allowCaptureModeToggle: false
+  property bool autoAcceptPhoto: false
 
   readonly property int panelExtraSpace: allowCaptureModeToggle ? 70 : 0
   readonly property int captureOffset: allowCaptureModeToggle ? -25 : 0
@@ -316,6 +317,11 @@ Popup {
                 currentPath = path;
                 photoPreview.source = "file://" + currentPath;
                 cameraItem.state = "PhotoPreview";
+                if (cameraItem.autoAcceptPhoto) {
+                  Qt.callLater(function () {
+                    captureButton.clicked();
+                  });
+                }
               } else {
                 cameraItem.state = "PhotoCapture";
               }
@@ -395,6 +401,12 @@ Popup {
                   currentPath = path;
                   orientationNormalizer.normalizeImageOrientation(currentPath);
                   photoPreview.source = "file://" + currentPath;
+                  if (cameraItem.autoAcceptPhoto && currentPath !== "") {
+                    cameraItem.state = "PhotoPreview";
+                    Qt.callLater(function () {
+                      captureButton.clicked();
+                    });
+                  }
                 }
               }
 
