@@ -80,12 +80,14 @@ ALIASES = {
         "pressure_zone": "压力分区",
         "status": "状态",
         "install_date": "安装日期",
+        "last_inspection_at": "最近巡检",
         "note": "备注",
         "created_at": "创建时间",
         "updated_at": "更新时间",
     },
     "inspections": {
         "asset_id": "所属设施",
+        "pipeline_id": "所属管线",
         "inspected_at": "巡检时间",
         "inspector": "巡检人员",
         "result": "巡检结果",
@@ -97,6 +99,10 @@ ALIASES = {
         "created_at": "创建时间",
     },
     "attachments": {
+        "asset_id": "所属设施",
+        "pipeline_id": "所属管线",
+        "inspection_id": "所属巡检",
+        "repair_id": "所属维修",
         "media_type": "附件类型",
         "photo_path": "照片",
         "video_path": "视频",
@@ -108,6 +114,7 @@ ALIASES = {
     },
     "repairs": {
         "asset_id": "所属设施",
+        "pipeline_id": "所属管线",
         "inspection_id": "来源巡检",
         "reported_at": "报修时间",
         "repaired_at": "完成时间",
@@ -179,6 +186,9 @@ DEFAULTS = {
 # id, human name, child layer/field, parent layer/field
 RELATIONS = [
     ("pipeline_assets", "管线设施", "assets_point", "pipeline_id", "pipelines", "id"),
+    ("pipeline_inspections", "管线巡检", "inspections", "pipeline_id", "pipelines", "id"),
+    ("pipeline_repairs", "管线维修", "repairs", "pipeline_id", "pipelines", "id"),
+    ("pipeline_attachments", "管线附件", "attachments", "pipeline_id", "pipelines", "id"),
     ("asset_inspections", "巡检历史", "inspections", "asset_id", "assets_point", "id"),
     ("asset_repairs", "维修历史", "repairs", "asset_id", "assets_point", "id"),
     ("inspection_repairs", "关联维修", "repairs", "inspection_id", "inspections", "id"),
@@ -196,29 +206,37 @@ RELATIONS = [
 
 RELATION_REFERENCE_FIELDS = {
     ("assets_point", "pipeline_id"): ("pipeline_assets", True),
-    ("inspections", "asset_id"): ("asset_inspections", False),
-    ("repairs", "asset_id"): ("asset_repairs", False),
+    ("inspections", "asset_id"): ("asset_inspections", True),
+    ("inspections", "pipeline_id"): ("pipeline_inspections", True),
+    ("repairs", "asset_id"): ("asset_repairs", True),
+    ("repairs", "pipeline_id"): ("pipeline_repairs", True),
     ("repairs", "inspection_id"): ("inspection_repairs", True),
+    ("attachments", "asset_id"): ("asset_attachments", True),
+    ("attachments", "pipeline_id"): ("pipeline_attachments", True),
+    ("attachments", "inspection_id"): ("inspection_attachments", True),
+    ("attachments", "repair_id"): ("repair_attachments", True),
 }
 
 HIDDEN_FIELDS = {
     "asset_types": {"fid"},
     "assets_point": {"fid", "id", "created_at", "updated_at"},
     "pipelines": {"fid", "id", "created_at", "updated_at"},
-    "inspections": {"fid", "id", "asset_id", "created_at"},
+    "inspections": {"fid", "id", "asset_id", "pipeline_id", "created_at"},
     "attachments": {
         "fid",
         "id",
         "asset_id",
+        "pipeline_id",
         "inspection_id",
         "repair_id",
         "created_at",
     },
-    "repairs": {"fid", "id", "asset_id", "inspection_id"},
+    "repairs": {"fid", "id", "asset_id", "pipeline_id", "inspection_id"},
 }
 
 READ_ONLY_FIELDS = {
     "assets_point": {"last_inspection_at"},
+    "pipelines": {"last_inspection_at"},
     "inspections": {"position_accuracy_m"},
 }
 
@@ -253,6 +271,7 @@ FORM_FIELDS = {
         "pressure_zone",
         "status",
         "install_date",
+        "last_inspection_at",
         "note",
     ],
     "inspections": [
@@ -281,7 +300,12 @@ FORM_FIELDS = {
 FORM_RELATIONS = {
     "asset_types": [],
     "assets_point": ["asset_inspections", "asset_repairs", "asset_attachments"],
-    "pipelines": ["pipeline_assets"],
+    "pipelines": [
+        "pipeline_assets",
+        "pipeline_inspections",
+        "pipeline_repairs",
+        "pipeline_attachments",
+    ],
     "inspections": ["inspection_repairs", "inspection_attachments"],
     "attachments": [],
     "repairs": ["repair_attachments"],
@@ -314,22 +338,22 @@ ATTACHMENT_MEDIA_FIELDS = {
 ATTACHMENT_NAMING = {
     "photo_path": (
         "'attachments/photos/' || "
-        'coalesce("asset_id", "inspection_id", "repair_id") || '
+        'coalesce("asset_id", "pipeline_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '.{extension}'"
     ),
     "video_path": (
         "'attachments/videos/' || "
-        'coalesce("asset_id", "inspection_id", "repair_id") || '
+        'coalesce("asset_id", "pipeline_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '.{extension}'"
     ),
     "audio_path": (
         "'attachments/audio/' || "
-        'coalesce("asset_id", "inspection_id", "repair_id") || '
+        'coalesce("asset_id", "pipeline_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '.{extension}'"
     ),
     "document_path": (
         "'attachments/documents/' || "
-        'coalesce("asset_id", "inspection_id", "repair_id") || '
+        'coalesce("asset_id", "pipeline_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '_{filename}'"
     ),
 }
