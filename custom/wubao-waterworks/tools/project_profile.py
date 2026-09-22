@@ -1,23 +1,25 @@
-"""Declarative QGIS/QField profile for the Wubao waterworks project.
+"""Declarative QGIS/QField profile for the waterworks inspection project.
 
 Keep business labels, forms and relations here so they can be tested without a
 QGIS installation. configure_qgis_project.py is only an adapter from this
 profile to PyQGIS.
 """
 
-PROJECT_TITLE = "吴堡供水巡检"
+PROJECT_TITLE = "供水巡检"
 PROJECT_CRS = "EPSG:4490"
 
-# Default first-open view around Wubao county seat. This is intentionally a
-# working-area view, not an administrative boundary lock.
-DEFAULT_VIEW_EXTENT = (110.69, 37.41, 110.79, 37.49)
+# Leave the initial extent unset in the reusable profile. A deployment may
+# provide its own extent or let QGIS/QField derive the view from loaded data.
+DEFAULT_VIEW_EXTENT = None
 
 LAYER_GROUPS = {
     "管网业务": ("assets_point", "pipelines"),
     "记录": ("inspections", "repairs", "attachments"),
+    "配置": ("asset_types",),
 }
 
 LAYERS = {
+    "asset_types": "设施类型配置",
     "assets_point": "供水设施",
     "pipelines": "供水管线",
     "inspections": "巡检记录",
@@ -26,6 +28,7 @@ LAYERS = {
 }
 
 DISPLAY_EXPRESSIONS = {
+    "asset_types": '"label"',
     "assets_point": """coalesce("name", '未命名点位') ||
 CASE WHEN coalesce("code", '') <> '' THEN ' [' || "code" || ']' ELSE '' END""",
     "pipelines": """coalesce("name", '未命名管线') ||
@@ -45,6 +48,15 @@ coalesce(to_string("reported_at"), '未填写时间')""",
 }
 
 ALIASES = {
+    "asset_types": {
+        "code": "类型代码",
+        "label": "类型名称",
+        "symbol_shape": "符号形状",
+        "symbol_color": "符号颜色",
+        "symbol_size": "符号大小",
+        "sort_order": "排序",
+        "active": "启用",
+    },
     "assets_point": {
         "code": "设施编号",
         "name": "点位名称",
@@ -108,16 +120,6 @@ ALIASES = {
 }
 
 VALUE_MAPS = {
-    ("assets_point", "asset_type"): [
-        {"阀门井": "valve_well"},
-        {"阀门": "valve"},
-        {"压力表": "pressure_gauge"},
-        {"消防栓": "hydrant"},
-        {"排气阀": "air_valve"},
-        {"排泥阀": "drain_valve"},
-        {"水表": "meter"},
-        {"其他": "other"},
-    ],
     ("assets_point", "status"): [
         {"正常": "normal"},
         {"需关注": "attention"},
@@ -146,6 +148,17 @@ VALUE_MAPS = {
         {"录音": "audio"},
         {"文档": "document"},
     ],
+}
+
+VALUE_RELATIONS = {
+    ("assets_point", "asset_type"): {
+        "layer": "asset_types",
+        "key": "code",
+        "value": "label",
+        "allow_null": False,
+        "order_by_value": True,
+        "filter_expression": '"active" = 1',
+    },
 }
 
 DEFAULTS = {
@@ -189,6 +202,7 @@ RELATION_REFERENCE_FIELDS = {
 }
 
 HIDDEN_FIELDS = {
+    "asset_types": {"fid"},
     "assets_point": {"fid", "id", "created_at", "updated_at"},
     "pipelines": {"fid", "id", "created_at", "updated_at"},
     "inspections": {"fid", "id", "asset_id", "created_at"},
@@ -209,6 +223,15 @@ READ_ONLY_FIELDS = {
 }
 
 FORM_FIELDS = {
+    "asset_types": [
+        "code",
+        "label",
+        "symbol_shape",
+        "symbol_color",
+        "symbol_size",
+        "sort_order",
+        "active",
+    ],
     "assets_point": [
         "code",
         "name",
@@ -256,6 +279,7 @@ FORM_FIELDS = {
 
 # Relations embedded in each parent form.
 FORM_RELATIONS = {
+    "asset_types": [],
     "assets_point": ["asset_inspections", "asset_repairs", "asset_attachments"],
     "pipelines": ["pipeline_assets"],
     "inspections": ["inspection_repairs", "inspection_attachments"],
@@ -311,40 +335,11 @@ ATTACHMENT_NAMING = {
 }
 
 
-ASSET_SYMBOLS = {
-    "valve_well": {
-        "label": "阀门井",
-        "shape": "circle",
-        "color": "#1976D2",
-        "size": "4.6",
-    },
-    "valve": {"label": "阀门", "shape": "diamond", "color": "#1565C0", "size": "4.4"},
-    "pressure_gauge": {
-        "label": "压力表",
-        "shape": "triangle",
-        "color": "#7B1FA2",
-        "size": "4.6",
-    },
-    "hydrant": {
-        "label": "消防栓",
-        "shape": "square",
-        "color": "#D32F2F",
-        "size": "4.6",
-    },
-    "air_valve": {
-        "label": "排气阀",
-        "shape": "triangle",
-        "color": "#00897B",
-        "size": "4.4",
-    },
-    "drain_valve": {
-        "label": "排泥阀",
-        "shape": "diamond",
-        "color": "#6D4C41",
-        "size": "4.4",
-    },
-    "meter": {"label": "水表", "shape": "circle", "color": "#3949AB", "size": "4.2"},
-    "other": {"label": "其他", "shape": "circle", "color": "#607D8B", "size": "4.0"},
+DEFAULT_ASSET_SYMBOL = {
+    "label": "其他",
+    "shape": "circle",
+    "color": "#607D8B",
+    "size": "4.0",
 }
 
 STATUS_STROKE_COLORS = {
