@@ -18,6 +18,8 @@ on:
       - 'src/core/utils/qflayerutils.cpp'
       - 'src/gui/qml/QfFeatureListForm.qml'
       - 'src/gui/qml/QfNavigationBar.qml'
+      - 'src/gui/qml/QfCamera.qml'
+      - 'src/gui/qml/QfCamera.qml'
       - 'src/core/qfgeometry.h'
       - 'src/core/utils/qffileutils.h'
       - 'src/core/utils/qffileutils.cpp'
@@ -197,6 +199,21 @@ jobs:
 
           grep -q 'objectName: "waterworksAttachmentDrawer"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
             echo "::error::Attachment browser is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'property bool autoAcceptPhoto: false' src/gui/qml/QfCamera.qml || {
+            echo "::error::Specialised photo auto-accept hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'function saveCapturedAttachment(sourcePath, mediaType)' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Direct media attachment capture is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'function assetTypeValueMap()' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Runtime asset type value mapping is missing"
             failures=$((failures + 1))
           }
 
