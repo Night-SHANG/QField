@@ -21,6 +21,7 @@
 #include <qgsdefaultvalue.h>
 #include <qgseditformconfig.h>
 #include <qgseditorwidgetsetup.h>
+#include <qgsfeaturerequest.h>
 #include <qgsfillsymbol.h>
 #include <qgsfillsymbollayer.h>
 #include <qgshuesaturationfilter.h>
