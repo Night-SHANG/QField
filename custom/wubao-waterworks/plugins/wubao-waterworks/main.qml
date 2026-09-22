@@ -17,6 +17,7 @@ Item {
   property var featureForm: iface.findItemByObjectName("featureForm")
 
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
+  readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
   property bool searchBusy: false
 
   Component.onCompleted: {
@@ -26,6 +27,16 @@ Item {
   function assetLayer() {
     for (let i = 0; i < assetLayerNames.length; i++) {
       const layers = qgisProject.mapLayersByName(assetLayerNames[i])
+      if (layers && layers.length > 0) {
+        return layers[0]
+      }
+    }
+    return null
+  }
+
+  function inspectionLayer() {
+    for (let i = 0; i < inspectionLayerNames.length; i++) {
+      const layers = qgisProject.mapLayersByName(inspectionLayerNames[i])
       if (layers && layers.length > 0) {
         return layers[0]
       }
@@ -153,12 +164,12 @@ Item {
       return
     }
 
-    if (!positionSource || !positionSource.projectedPosition) {
+    if (!positioning.projectedPosition) {
       mainWindow.displayToast("无法取得项目坐标")
       return
     }
 
-    const projected = positionSource.projectedPosition
+    const projected = positioning.projectedPosition
     const geometry = GeometryUtils.createGeometryFromWkt(
       "POINT(" + Number(projected.x) + " " + Number(projected.y) + ")"
     )
@@ -167,6 +178,39 @@ Item {
     if (!overlayFeatureFormDrawer) {
       mainWindow.displayToast("无法打开新增点位表单")
       return
+    }
+
+    overlayFeatureFormDrawer.featureModel.feature = feature
+    overlayFeatureFormDrawer.state = "Add"
+    waterworksDialog.close()
+    overlayFeatureFormDrawer.open()
+  }
+
+  function createInspection(assetId) {
+    const layer = inspectionLayer()
+    if (!layer) {
+      mainWindow.displayToast("当前项目缺少“巡检记录”图层")
+      return
+    }
+    if (!assetId) {
+      mainWindow.displayToast("无法确定巡检设施")
+      return
+    }
+    if (!overlayFeatureFormDrawer) {
+      mainWindow.displayToast("无法打开巡检表单")
+      return
+    }
+
+    const geometry = GeometryUtils.createGeometryFromWkt("")
+    const feature = FeatureUtils.createFeature(layer, geometry)
+    feature.setAttribute("asset_id", assetId)
+
+    const positioning = iface.positioning()
+    if (positioning && positioning.active && positioning.positionInformation) {
+      const accuracy = Number(positioning.positionInformation.hacc)
+      if (isFinite(accuracy) && accuracy >= 0) {
+        feature.setAttribute("position_accuracy_m", accuracy)
+      }
     }
 
     overlayFeatureFormDrawer.featureModel.feature = feature
@@ -334,6 +378,11 @@ Item {
               Button {
                 text: "编辑"
                 onClicked: plugin.openAsset(assetId, true)
+              }
+
+              Button {
+                text: "巡检"
+                onClicked: plugin.createInspection(assetId)
               }
 
               Item {
