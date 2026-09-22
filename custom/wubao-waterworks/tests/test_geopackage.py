@@ -6,12 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
-GENERATOR = (
-    Path(__file__).resolve().parents[1]
-    / "tools"
-    / "create_geopackage.py"
-)
+GENERATOR = Path(__file__).resolve().parents[1] / "tools" / "create_geopackage.py"
 
 spec = importlib.util.spec_from_file_location("create_geopackage", GENERATOR)
 module = importlib.util.module_from_spec(spec)
@@ -31,8 +26,12 @@ class GeoPackageSchemaTests(unittest.TestCase):
     def test_integrity_and_header(self) -> None:
         with sqlite3.connect(self.path) as db:
             self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
-            self.assertEqual(db.execute("PRAGMA application_id").fetchone()[0], module.APPLICATION_ID)
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], module.USER_VERSION)
+            self.assertEqual(
+                db.execute("PRAGMA application_id").fetchone()[0], module.APPLICATION_ID
+            )
+            self.assertEqual(
+                db.execute("PRAGMA user_version").fetchone()[0], module.USER_VERSION
+            )
 
     def test_required_business_tables_exist(self) -> None:
         expected = {
@@ -53,13 +52,11 @@ class GeoPackageSchemaTests(unittest.TestCase):
 
     def test_geometries_use_cgcs2000(self) -> None:
         with sqlite3.connect(self.path) as db:
-            rows = db.execute(
-                """
+            rows = db.execute("""
                 SELECT table_name, geometry_type_name, srs_id
                 FROM gpkg_geometry_columns
                 ORDER BY table_name
-                """
-            ).fetchall()
+                """).fetchall()
 
         self.assertEqual(
             rows,
@@ -165,22 +162,17 @@ class GeoPackageSchemaTests(unittest.TestCase):
                 """,
                 (asset_id,),
             )
-            media_type = db.execute(
-                """
+            media_type = db.execute("""
                 SELECT media_type
                 FROM attachments
                 WHERE photo_path='attachments/default.jpg'
-                """
-            ).fetchone()[0]
+                """).fetchone()[0]
 
         self.assertEqual(media_type, "photo")
 
     def test_attachment_media_columns_cover_qfield_capture_modes(self) -> None:
         with sqlite3.connect(self.path) as db:
-            columns = {
-                row[1]
-                for row in db.execute("PRAGMA table_info(attachments)")
-            }
+            columns = {row[1] for row in db.execute("PRAGMA table_info(attachments)")}
 
         self.assertTrue(
             {
@@ -206,12 +198,10 @@ class GeoPackageSchemaTests(unittest.TestCase):
                 )
 
             with self.assertRaises(sqlite3.IntegrityError):
-                db.execute(
-                    """
+                db.execute("""
                     INSERT INTO inspections(asset_id, result)
                     VALUES ('asset-x', 'unknown_result')
-                    """
-                )
+                    """)
 
     def test_latest_inspection_time_is_maintained(self) -> None:
         with sqlite3.connect(self.path) as db:
