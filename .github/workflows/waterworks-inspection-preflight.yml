@@ -136,4 +136,9 @@ jobs:
               failures=$((failures + 1))
             }
 
+          grep -q 'waterworks-template.gpkg'             .github/workflows/waterworks-inspection-android.yml || {
+              echo "::error::Bundled waterworks data template generation is missing"
+              failures=$((failures + 1))
+            }
+
           exit "${failures}"
