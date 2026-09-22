@@ -2,9 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import org.qfield
 import org.qgis
-import Theme
+import org.qfield.core
+import org.qfield.gui
 
 Item {
   id: plugin
@@ -118,7 +118,7 @@ Item {
       "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " +
       "lower(coalesce(\"address_hint\", '')) LIKE '%" + needle + "%'"
 
-    const iterator = LayerUtils.createFeatureIteratorFromExpression(layer, expression)
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression)
     let count = 0
 
     while (iterator.hasNext() && count < 100) {
@@ -171,7 +171,7 @@ Item {
       "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', 'EPSG:32649')" +
       ") <= " + radius
 
-    const iterator = LayerUtils.createFeatureIteratorFromExpression(layer, expression)
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression)
     let count = 0
     while (iterator.hasNext() && count < 100) {
       appendAssetResult(iterator.next())
@@ -227,10 +227,14 @@ Item {
     }
 
     const projected = positioning.projectedPosition
-    const geometry = GeometryUtils.createGeometryFromWkt(
+    const geometry = QfGeometryUtils.createGeometryFromWkt(
       "POINT(" + Number(projected.x) + " " + Number(projected.y) + ")"
     )
-    const feature = FeatureUtils.createFeature(layer, geometry)
+    const feature = QfFeatureUtils.createFeature(
+      layer,
+      geometry,
+      positioning.positionInformation
+    )
 
     if (!overlayFeatureFormDrawer) {
       mainWindow.displayToast("无法打开新增点位表单")
@@ -258,8 +262,7 @@ Item {
       return
     }
 
-    const geometry = GeometryUtils.createGeometryFromWkt("")
-    const feature = FeatureUtils.createFeature(layer, geometry)
+    const feature = QfFeatureUtils.createFeature(layer)
     feature.setAttribute("asset_id", assetId)
 
     const positioning = iface.positioning()
@@ -279,9 +282,10 @@ Item {
   QfToolButton {
     id: waterworksButton
     objectName: "wubaoWaterworksButton"
-    iconSource: Theme.getThemeVectorIcon("ic_geotag_white_24dp")
-    iconColor: Theme.toolButtonColor
-    bgcolor: Theme.toolButtonBackgroundColor
+    text: "水"
+    font.bold: true
+    Material.foreground: QfTheme.toolButtonColor
+    bgcolor: QfTheme.toolButtonBackgroundColor
     round: true
 
     onClicked: waterworksDialog.open()
@@ -312,13 +316,13 @@ Item {
         Layout.fillWidth: true
         text: "现场定位"
         font.bold: true
-        color: Theme.mainTextColor
+        color: QfTheme.mainTextColor
       }
 
       Label {
         Layout.fillWidth: true
         text: plugin.positionText()
-        color: Theme.secondaryTextColor
+        color: QfTheme.secondaryTextColor
         wrapMode: Text.WordWrap
       }
 
@@ -341,14 +345,14 @@ Item {
       Rectangle {
         Layout.fillWidth: true
         height: 1
-        color: Theme.controlBorderColor
+        color: QfTheme.controlBorderColor
       }
 
       Label {
         Layout.fillWidth: true
         text: "查找点位"
         font.bold: true
-        color: Theme.mainTextColor
+        color: QfTheme.mainTextColor
       }
 
       RowLayout {
@@ -400,7 +404,7 @@ Item {
         Layout.fillWidth: true
         visible: assetSearchResults.count > 0
         text: "找到 " + assetSearchResults.count + " 个点位"
-        color: Theme.secondaryTextColor
+        color: QfTheme.secondaryTextColor
       }
 
       ListView {
@@ -421,8 +425,8 @@ Item {
           width: resultsView.width
           height: resultColumn.implicitHeight + 20
           radius: 6
-          color: Theme.groupBoxBackgroundColor
-          border.color: Theme.controlBorderColor
+          color: QfTheme.groupBoxBackgroundColor
+          border.color: QfTheme.controlBorderColor
 
           ColumnLayout {
             id: resultColumn
@@ -438,7 +442,7 @@ Item {
               Layout.fillWidth: true
               text: assetName
               font.bold: true
-              color: Theme.mainTextColor
+              color: QfTheme.mainTextColor
               elide: Text.ElideRight
             }
 
@@ -447,7 +451,7 @@ Item {
               text: (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") +
                     (assetType.length > 0 ? assetType + "  " : "") +
                     (assetStatus.length > 0 ? assetStatus : "")
-              color: Theme.secondaryTextColor
+              color: QfTheme.secondaryTextColor
               elide: Text.ElideRight
             }
 
