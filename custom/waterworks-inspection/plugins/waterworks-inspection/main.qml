@@ -187,6 +187,10 @@ Item {
       clauses.push("\"status\" = '" + escapeExpressionString(statusValue) + "'");
     }
 
+    if (uninspectedOnly && uninspectedOnly.checked) {
+      clauses.push("\"last_inspection_at\" IS NULL");
+    }
+
     return clauses.length > 0 ? clauses.join(" AND ") : "1 = 1";
   }
 
@@ -257,11 +261,23 @@ Item {
     const nameValue = feature.attribute("name");
     const codeValue = feature.attribute("code");
     const statusValue = feature.attribute("status");
+    const lastInspectionValue = feature.attribute("last_inspection_at");
     let typeValue = "";
+    let detailValue = "";
     let fallbackName = "未命名点位";
 
     if (objectKind === "asset") {
       typeValue = feature.attribute("asset_type");
+      const detailParts = [];
+      const area = feature.attribute("area_name");
+      const hint = feature.attribute("address_hint");
+      if (area !== null && area !== undefined && String(area).length > 0) {
+        detailParts.push(String(area));
+      }
+      if (hint !== null && hint !== undefined && String(hint).length > 0) {
+        detailParts.push(String(hint));
+      }
+      detailValue = detailParts.join(" · ");
     } else {
       fallbackName = "未命名管线";
       const parts = [];
@@ -278,6 +294,11 @@ Item {
         parts.push(String(material));
       }
       typeValue = parts.join(" · ");
+
+      const pressureZone = feature.attribute("pressure_zone");
+      if (pressureZone !== null && pressureZone !== undefined && String(pressureZone).length > 0) {
+        detailValue = "压力分区 " + String(pressureZone);
+      }
     }
 
     assetSearchResults.append({
@@ -287,6 +308,8 @@ Item {
       "assetCode": codeValue === null || codeValue === undefined ? "" : String(codeValue),
       "assetType": typeValue === null || typeValue === undefined ? "" : String(typeValue),
       "assetStatus": statusValue === null || statusValue === undefined ? "" : String(statusValue),
+      "assetLastInspection": lastInspectionValue === null || lastInspectionValue === undefined ? "" : String(lastInspectionValue),
+      "assetDetail": detailValue,
       "assetDistance": distanceMeters === undefined || distanceMeters === null ? -1 : Math.max(0, Math.round(Number(distanceMeters)))
     });
   }
@@ -761,6 +784,13 @@ Item {
         }
       }
 
+      CheckBox {
+        id: uninspectedOnly
+        Layout.fillWidth: true
+        text: "仅看从未巡检"
+        onToggled: assetSearchResults.clear()
+      }
+
       RowLayout {
         Layout.fillWidth: true
         spacing: 6
@@ -843,6 +873,8 @@ Item {
           required property string assetCode
           required property string assetType
           required property string assetStatus
+          required property string assetLastInspection
+          required property string assetDetail
           required property int assetDistance
 
           width: resultsView.width
@@ -872,6 +904,13 @@ Item {
             Label {
               Layout.fillWidth: true
               text: (assetDistance >= 0 ? assetDistance + " m  " : "") + (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") + (assetType.length > 0 ? (objectKind === "asset" ? plugin.assetTypeLabel(assetType) : assetType) + "  " : "") + (assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : "")
+              color: QfTheme.secondaryTextColor
+              elide: Text.ElideRight
+            }
+
+            Label {
+              Layout.fillWidth: true
+              text: "最近巡检 " + (assetLastInspection.length > 0 ? assetLastInspection : "从未巡检") + (assetDetail.length > 0 ? "  ·  " + assetDetail : "")
               color: QfTheme.secondaryTextColor
               elide: Text.ElideRight
             }
