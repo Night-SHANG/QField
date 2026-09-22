@@ -195,6 +195,24 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("gnssButton.clicked()", self.text)
         self.assertIn('text: "定位"', self.text)
 
+    def test_basemap_switcher_keeps_business_data_separate(self) -> None:
+        self.assertIn("function applyBasemap(mode, showToast)", self.text)
+        self.assertIn("function removeManagedBasemapLayers()", self.text)
+        self.assertIn("QfProjectUtils.addMapLayerAtBottom", self.text)
+        self.assertIn('"tdt-vector"', self.text)
+        self.assertIn('"tdt-imagery"', self.text)
+        self.assertIn('"osm"', self.text)
+        self.assertIn('"vec_w"', self.text)
+        self.assertIn('"cva_w"', self.text)
+        self.assertIn('"img_w"', self.text)
+        self.assertIn('"cia_w"', self.text)
+
+    def test_tianditu_key_is_not_hardcoded_in_plugin(self) -> None:
+        self.assertIn('import "TiandituConfig.js" as TiandituConfig', self.text)
+        self.assertIn("function effectiveTiandituToken()", self.text)
+        self.assertIn("echoMode: TextInput.Password", self.text)
+        self.assertIn("不显示明文", self.text)
+
     def test_navigation_reuses_qfield_navigation(self) -> None:
         self.assertIn('iface.findItemByObjectName("navigation")', self.text)
         self.assertIn("navigation.setDestinationFeature", self.text)
