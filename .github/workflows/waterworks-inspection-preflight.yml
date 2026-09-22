@@ -16,6 +16,10 @@ on:
       - 'src/core/utils/qffileutils.cpp'
       - 'src/core/utils/qflayerutils.h'
       - 'src/core/utils/qflayerutils.cpp'
+      - 'src/core/utils/qfprojectutils.h'
+      - 'src/core/utils/qfprojectutils.cpp'
+      - 'src/core/utils/qfprojectutils.h'
+      - 'src/core/utils/qfprojectutils.cpp'
       - 'src/gui/qml/QfFeatureListForm.qml'
       - 'src/gui/qml/QfNavigationBar.qml'
       - 'src/gui/qml/QfCamera.qml'
@@ -100,6 +104,7 @@ jobs:
             custom/waterworks-inspection/theme.json \
             custom/waterworks-inspection/plugins/waterworks-inspection/main.qml \
             custom/waterworks-inspection/plugins/waterworks-inspection/metadata.txt \
+            custom/waterworks-inspection/plugins/waterworks-inspection/TiandituConfig.js \
             custom/waterworks-inspection/schema/README.md \
             custom/waterworks-inspection/tools/create_geopackage.py \
             custom/waterworks-inspection/tools/configure_qgis_project.py \
@@ -216,6 +221,36 @@ jobs:
             echo "::error::Runtime asset type value mapping is missing"
             failures=$((failures + 1))
           }
+
+          grep -q 'Q_INVOKABLE static bool addMapLayerAtBottom' src/core/utils/qfprojectutils.h || {
+            echo "::error::Runtime basemap bottom-layer hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'function applyBasemap(mode, showToast)' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Basemap switcher is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'tdt-vector' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Tianditu vector basemap option is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'tdt-imagery' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Tianditu imagery basemap option is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'TIANDITU_TK: ${{ secrets.TIANDITU_TK }}' .github/workflows/waterworks-inspection-android.yml || {
+            echo "::error::Tianditu key must be injected from an Actions secret"
+            failures=$((failures + 1))
+          }
+
+          if grep -Eq 'return "[0-9a-fA-F]{24,}"' custom/waterworks-inspection/plugins/waterworks-inspection/TiandituConfig.js; then
+            echo "::error::A real Tianditu key must never be committed"
+            failures=$((failures + 1))
+          fi
 
           grep -q 'objectName: "waterworksPipelineDigitizingHint"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
             echo "::error::Pipeline digitizing guidance is missing"
