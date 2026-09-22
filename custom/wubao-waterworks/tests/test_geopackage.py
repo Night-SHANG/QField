@@ -90,6 +90,37 @@ class GeoPackageSchemaTests(unittest.TestCase):
         self.assertEqual(len(first), 36)
         self.assertNotEqual(first, second)
 
+    def test_attachment_has_exactly_one_parent(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "22222222-2222-2222-2222-222222222222"
+            inspection_id = "33333333-3333-3333-3333-333333333333"
+
+            db.execute(
+                """
+                INSERT INTO attachments(asset_id, media_type, file_path)
+                VALUES (?, 'photo', 'attachments/a.jpg')
+                """,
+                (asset_id,),
+            )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO attachments(
+                        asset_id, inspection_id, media_type, file_path
+                    ) VALUES (?, ?, 'photo', 'attachments/invalid.jpg')
+                    """,
+                    (asset_id, inspection_id),
+                )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO attachments(media_type, file_path)
+                    VALUES ('photo', 'attachments/orphan.jpg')
+                    """
+                )
+
     def test_history_tables_are_not_delete_cascaded(self) -> None:
         with sqlite3.connect(self.path) as db:
             asset_id = "11111111-1111-1111-1111-111111111111"
