@@ -84,6 +84,24 @@ Item {
     }
   }
 
+  Connections {
+    target: overlayFeatureFormDrawer
+
+    function onClosed() {
+      if (pendingAttachmentRefreshId) {
+        const objectId = pendingAttachmentRefreshId;
+        const objectKind = pendingAttachmentRefreshKind;
+        pendingAttachmentRefreshId = "";
+        pendingAttachmentRefreshKind = "";
+        Qt.callLater(function () {
+          if (waterworksProjectReady) {
+            openAttachmentPanel(objectId, objectKind);
+          }
+        });
+      }
+    }
+  }
+
   function refreshProjectState() {
     waterworksProjectReady = !!assetLayer() && !!pipelineLayer() && !!inspectionLayer() && !!repairLayer() && !!attachmentLayer();
     loadAssetTypeOptions();
@@ -1567,6 +1585,59 @@ Item {
     id: assetSearchResults
   }
 
+  ListModel {
+    id: attachmentItems
+  }
+
+  QfDialog {
+    id: deleteObjectDialog
+    parent: mainWindow.contentItem
+    title: "确认删除"
+    modal: true
+    standardButtons: Dialog.NoButton
+    width: Math.min(mainWindow.width - 40, 460)
+    x: (mainWindow.width - width) / 2
+    y: (mainWindow.height - height) / 2
+
+    ColumnLayout {
+      width: parent.width
+      spacing: 12
+
+      Label {
+        Layout.fillWidth: true
+        text: "确定删除“" + pendingDeleteObjectName + "”吗？"
+        font.bold: true
+        wrapMode: Text.WordWrap
+        color: QfTheme.mainTextColor
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: pendingDeleteAttachmentCount > 0
+              ? "将同时删除 " + pendingDeleteAttachmentCount + " 个照片/附件及对应文件。此操作无法恢复。"
+              : "此操作无法恢复。"
+        wrapMode: Text.WordWrap
+        color: QfTheme.secondaryTextColor
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Button {
+          Layout.fillWidth: true
+          text: "取消"
+          onClicked: deleteObjectDialog.close()
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "删除"
+          onClicked: plugin.confirmDeleteBusinessObject()
+        }
+      }
+    }
+  }
+
   QfDialog {
     id: assetEntryDialog
     parent: mainWindow.contentItem
@@ -1854,6 +1925,12 @@ Item {
 
           Button {
             Layout.fillWidth: true
+            text: "照片/附件"
+            onClicked: plugin.openAttachmentPanel(assetId, objectKind)
+          }
+
+          Button {
+            Layout.fillWidth: true
             visible: objectKind === "asset"
             text: "导航"
             onClicked: plugin.navigateToAsset(assetId)
@@ -1885,8 +1962,8 @@ Item {
 
           Button {
             Layout.fillWidth: true
-            text: "附件"
-            onClicked: plugin.createAttachment(assetId, objectKind)
+            text: "删除"
+            onClicked: plugin.requestDeleteBusinessObject(assetId, objectKind)
           }
         }
       }
@@ -1899,6 +1976,8 @@ Item {
     parent: mainWindow.contentItem
     z: 90
     visible: plugin.waterworksProjectReady &&
+             (!digitizingToolbar || !digitizingToolbar.geometryRequested) &&
+             !attachmentDrawer.opened &&
              (!featureForm || featureForm.state === "Hidden") &&
              (!overlayFeatureFormDrawer || !overlayFeatureFormDrawer.opened) &&
              !assetEntryDialog.visible && !pipelineEntryDialog.visible
@@ -1918,7 +1997,8 @@ Item {
     objectName: "waterworksLocationButton"
     parent: mainWindow.contentItem
     z: 90
-    visible: plugin.waterworksProjectReady && !browserDrawer.opened && !addDrawer.opened && !moreDrawer.opened &&
+    visible: plugin.waterworksProjectReady && !browserDrawer.opened && !addDrawer.opened && !moreDrawer.opened && !attachmentDrawer.opened &&
+             (!digitizingToolbar || !digitizingToolbar.geometryRequested) &&
              (!featureForm || featureForm.state === "Hidden") &&
              (!overlayFeatureFormDrawer || !overlayFeatureFormDrawer.opened) &&
              !assetEntryDialog.visible && !pipelineEntryDialog.visible
@@ -1933,12 +2013,46 @@ Item {
   }
 
   Rectangle {
+    id: pipelineDigitizingHint
+    objectName: "waterworksPipelineDigitizingHint"
+    parent: mainWindow.contentItem
+    z: 92
+    visible: digitizingToolbar && digitizingToolbar.geometryRequested &&
+             digitizingToolbar.geometryRequestedLayer === plugin.pipelineLayer()
+    anchors {
+      left: parent.left
+      right: parent.right
+      top: parent.top
+      leftMargin: mainWindow.sceneLeftMargin + 12
+      rightMargin: mainWindow.sceneRightMargin + 12
+      topMargin: mainWindow.sceneTopMargin + 10
+    }
+    height: pipelineHintLabel.implicitHeight + 20
+    radius: 8
+    color: QfTheme.mainBackgroundColor
+    border.color: QfTheme.controlBorderColor
+
+    Label {
+      id: pipelineHintLabel
+      anchors {
+        fill: parent
+        margins: 10
+      }
+      text: "新建管线：依次点击地图添加节点（至少 2 个） → 点 ✓ 完成 → 再填写管径、材质等参数"
+      wrapMode: Text.WordWrap
+      horizontalAlignment: Text.AlignHCenter
+      color: QfTheme.mainTextColor
+    }
+  }
+
+  Rectangle {
     id: bottomActionBar
     objectName: "waterworksBottomActionBar"
     parent: mainWindow.contentItem
     z: 80
     visible: plugin.waterworksProjectReady &&
-             !browserDrawer.opened && !addDrawer.opened && !moreDrawer.opened &&
+             !browserDrawer.opened && !addDrawer.opened && !moreDrawer.opened && !attachmentDrawer.opened &&
+             (!digitizingToolbar || !digitizingToolbar.geometryRequested) &&
              (!featureForm || featureForm.state === "Hidden") &&
              (!overlayFeatureFormDrawer || !overlayFeatureFormDrawer.opened) &&
              !assetEntryDialog.visible && !pipelineEntryDialog.visible
@@ -1994,8 +2108,7 @@ Item {
     objectName: "waterworksFocusedObjectActionBar"
     parent: mainWindow.contentItem
     z: 95
-    visible: workerAppSettings.editEnabled &&
-             featureForm && featureForm.state === "FeatureForm" &&
+    visible: featureForm && featureForm.state === "FeatureForm" &&
              plugin.focusedBusinessObjectKind().length > 0 &&
              plugin.focusedBusinessObjectId().length > 0
     anchors {
@@ -2006,38 +2119,217 @@ Item {
       leftMargin: mainWindow.sceneLeftMargin + 8
       rightMargin: mainWindow.sceneRightMargin + 8
     }
-    height: 48
+    height: workerAppSettings.editEnabled ? 96 : 48
     radius: 8
     color: QfTheme.mainBackgroundColor
     border.color: QfTheme.controlBorderColor
 
-    RowLayout {
+    ColumnLayout {
       anchors.fill: parent
       anchors.margins: 4
       spacing: 4
 
-      Button {
+      RowLayout {
         Layout.fillWidth: true
-        text: "编辑"
-        onClicked: plugin.openObject(plugin.focusedBusinessObjectKind(), plugin.focusedBusinessObjectId(), true)
+        Layout.fillHeight: true
+        spacing: 4
+
+        Button {
+          Layout.fillWidth: true
+          text: "照片/附件"
+          onClicked: plugin.openAttachmentPanel(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+        }
+
+        Button {
+          Layout.fillWidth: true
+          visible: plugin.focusedBusinessObjectKind() === "asset"
+          text: "导航"
+          onClicked: plugin.navigateToAsset(plugin.focusedBusinessObjectId())
+        }
       }
 
-      Button {
+      RowLayout {
         Layout.fillWidth: true
-        text: "巡检"
-        onClicked: plugin.createInspection(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+        Layout.fillHeight: true
+        visible: workerAppSettings.editEnabled
+        spacing: 4
+
+        Button {
+          Layout.fillWidth: true
+          text: "编辑"
+          onClicked: plugin.openObject(plugin.focusedBusinessObjectKind(), plugin.focusedBusinessObjectId(), true)
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "巡检"
+          onClicked: plugin.createInspection(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "维修"
+          onClicked: plugin.createRepair(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "删除"
+          onClicked: plugin.requestDeleteBusinessObject(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+        }
+      }
+    }
+  }
+
+  Drawer {
+    id: attachmentDrawer
+    objectName: "waterworksAttachmentDrawer"
+    parent: mainWindow.contentItem
+    z: 110
+    edge: Qt.BottomEdge
+    modal: false
+    interactive: true
+    width: mainWindow.width
+    height: Math.min(mainWindow.height * 0.68, 680)
+
+    background: Rectangle {
+      color: QfTheme.mainBackgroundColor
+      border.color: QfTheme.controlBorderColor
+    }
+
+    ColumnLayout {
+      anchors {
+        fill: parent
+        leftMargin: mainWindow.sceneLeftMargin + 12
+        rightMargin: mainWindow.sceneRightMargin + 12
+        topMargin: 10
+        bottomMargin: mainWindow.sceneBottomMargin + 10
+      }
+      spacing: 8
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Label {
+          Layout.fillWidth: true
+          text: "照片 / 附件"
+          font.bold: true
+          font.pixelSize: 18
+          color: QfTheme.mainTextColor
+        }
+
+        Button {
+          text: "关闭"
+          onClicked: attachmentDrawer.close()
+        }
       }
 
-      Button {
+      RowLayout {
         Layout.fillWidth: true
-        text: "维修"
-        onClicked: plugin.createRepair(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+        visible: workerAppSettings.editEnabled
+        spacing: 5
+
+        Button {
+          Layout.fillWidth: true
+          text: "拍照"
+          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "photo")
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "视频"
+          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "video")
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "录音"
+          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "audio")
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "文档"
+          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "document")
+        }
       }
 
-      Button {
+      Label {
         Layout.fillWidth: true
-        text: "附件"
-        onClicked: plugin.createAttachment(plugin.focusedBusinessObjectId(), plugin.focusedBusinessObjectKind())
+        visible: attachmentItems.count === 0
+        text: workerAppSettings.editEnabled ? "还没有附件，可用上面的按钮添加。" : "还没有照片或附件。"
+        color: QfTheme.secondaryTextColor
+        horizontalAlignment: Text.AlignHCenter
+        wrapMode: Text.WordWrap
+      }
+
+      ListView {
+        id: attachmentListView
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        clip: true
+        spacing: 8
+        model: attachmentItems
+
+        delegate: Rectangle {
+          required property string attachmentId
+          required property string mediaType
+          required property string relativePath
+          required property string caption
+          required property string capturedAt
+
+          width: attachmentListView.width
+          height: mediaType === "photo" ? 150 : attachmentInfoColumn.implicitHeight + 24
+          radius: 8
+          color: QfTheme.groupBoxBackgroundColor
+          border.color: QfTheme.controlBorderColor
+
+          RowLayout {
+            anchors {
+              fill: parent
+              margins: 8
+            }
+            spacing: 10
+
+            Image {
+              visible: mediaType === "photo"
+              Layout.preferredWidth: visible ? 120 : 0
+              Layout.fillHeight: visible
+              source: visible ? plugin.attachmentUrl(relativePath) : ""
+              fillMode: Image.PreserveAspectCrop
+              asynchronous: true
+              cache: false
+            }
+
+            ColumnLayout {
+              id: attachmentInfoColumn
+              Layout.fillWidth: true
+              spacing: 4
+
+              Label {
+                Layout.fillWidth: true
+                text: plugin.attachmentTypeLabel(mediaType) + (caption.length > 0 ? " · " + caption : "")
+                font.bold: true
+                color: QfTheme.mainTextColor
+                elide: Text.ElideRight
+              }
+
+              Label {
+                Layout.fillWidth: true
+                text: capturedAt.length > 0 ? capturedAt : relativePath
+                color: QfTheme.secondaryTextColor
+                elide: Text.ElideRight
+              }
+
+              Button {
+                Layout.fillWidth: true
+                text: mediaType === "photo" ? "查看原图" : "打开" + plugin.attachmentTypeLabel(mediaType)
+                enabled: relativePath.length > 0
+                onClicked: Qt.openUrlExternally(plugin.attachmentUrl(relativePath))
+              }
+            }
+          }
+        }
       }
     }
   }
