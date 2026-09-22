@@ -259,6 +259,96 @@ class GeoPackageSchemaTests(unittest.TestCase):
             ).fetchone()[0]
             self.assertEqual(latest, "2026-09-20 08:00:00")
 
+    def test_asset_status_follows_inspection_and_repair_lifecycle(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+            db.execute(
+                "INSERT INTO assets_point(id, name) VALUES (?, ?)",
+                (asset_id, "状态联动测试"),
+            )
+
+            db.execute(
+                """
+                INSERT INTO inspections(asset_id, result)
+                VALUES (?, 'repair')
+                """,
+                (asset_id,),
+            )
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM assets_point WHERE id=?",
+                    (asset_id,),
+                ).fetchone()[0],
+                "repair",
+            )
+
+            repair_id = "dddddddd-dddd-dddd-dddd-dddddddddddd"
+            db.execute(
+                """
+                INSERT INTO repairs(id, asset_id, result)
+                VALUES (?, ?, 'unresolved')
+                """,
+                (repair_id, asset_id),
+            )
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM assets_point WHERE id=?",
+                    (asset_id,),
+                ).fetchone()[0],
+                "repair",
+            )
+
+            db.execute(
+                "UPDATE repairs SET result='resolved' WHERE id=?",
+                (repair_id,),
+            )
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM assets_point WHERE id=?",
+                    (asset_id,),
+                ).fetchone()[0],
+                "attention",
+            )
+
+            db.execute(
+                """
+                INSERT INTO inspections(asset_id, result)
+                VALUES (?, 'normal')
+                """,
+                (asset_id,),
+            )
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM assets_point WHERE id=?",
+                    (asset_id,),
+                ).fetchone()[0],
+                "normal",
+            )
+
+    def test_attention_inspection_does_not_downgrade_repair_status(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+            db.execute(
+                """
+                INSERT INTO assets_point(id, name, status)
+                VALUES (?, ?, 'repair')
+                """,
+                (asset_id, "不降级测试"),
+            )
+            db.execute(
+                """
+                INSERT INTO inspections(asset_id, result)
+                VALUES (?, 'attention')
+                """,
+                (asset_id,),
+            )
+            status = db.execute(
+                "SELECT status FROM assets_point WHERE id=?",
+                (asset_id,),
+            ).fetchone()[0]
+
+        self.assertEqual(status, "repair")
+
     def test_repair_result_domain_and_completion_time(self) -> None:
         with sqlite3.connect(self.path) as db:
             asset_id = "77777777-7777-7777-7777-777777777777"
