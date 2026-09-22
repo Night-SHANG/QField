@@ -46,6 +46,9 @@ Item {
     refreshProjectState();
     Qt.callLater(function () {
       simplifyInterface();
+      if (!iface.hasProjectOnLaunch() && (!qgisProject || !qgisProject.fileName)) {
+        createDefaultWaterworksProject();
+      }
     });
   }
 
@@ -55,6 +58,7 @@ Item {
     function onLoadProjectEnded(path, name) {
       workerAppSettings.loadProjectOnLaunch = true;
       Qt.callLater(function () {
+        ensureBusinessLayers(path);
         refreshProjectState();
         simplifyInterface();
       });
@@ -64,6 +68,74 @@ Item {
   function refreshProjectState() {
     waterworksProjectReady = !!assetLayer() && !!pipelineLayer() && !!inspectionLayer() && !!repairLayer() && !!attachmentLayer();
     loadAssetTypeOptions();
+  }
+
+  function createDefaultWaterworksProject() {
+    const positioning = iface.positioning();
+    const info = positioning && positioning.positionInformation ? positioning.positionInformation : undefined;
+    const projectFile = QfProjectUtils.createProject({
+      "title": "供水巡检",
+      "basemap": "colorful",
+      "notes": false,
+      "camera_capture": false,
+      "tracks": false
+    }, info);
+
+    if (!projectFile) {
+      mainWindow.displayToast("无法创建供水巡检地图");
+      return;
+    }
+
+    const sourceDatabase = QfUrlUtils.toLocalFile(Qt.resolvedUrl("waterworks-template.gpkg"));
+    const targetDatabase = QfFileUtils.absolutePath(projectFile) + "/waterworks-inspection.gpkg";
+    if (!QfFileUtils.copyFile(sourceDatabase, targetDatabase, false) && !QfFileUtils.fileExists(targetDatabase)) {
+      mainWindow.displayToast("无法初始化供水数据");
+      return;
+    }
+
+    iface.loadFile(projectFile, "供水巡检");
+  }
+
+  function addBusinessLayer(databasePath, tableName, displayName) {
+    if (qgisProject.mapLayersByName(displayName).length > 0 || qgisProject.mapLayersByName(tableName).length > 0) {
+      return true;
+    }
+
+    const layer = QfLayerUtils.loadVectorLayer(
+      databasePath + "|layername=" + tableName,
+      displayName,
+      "ogr"
+    );
+    if (!layer || !layer.isValid) {
+      return false;
+    }
+    return QfProjectUtils.addMapLayer(qgisProject, layer);
+  }
+
+  function ensureBusinessLayers(projectPath) {
+    if (!projectPath) {
+      return false;
+    }
+
+    const databasePath = QfFileUtils.absolutePath(projectPath) + "/waterworks-inspection.gpkg";
+    if (!QfFileUtils.fileExists(databasePath)) {
+      return false;
+    }
+
+    const definitions = [
+      ["asset_types", "设施类型配置"],
+      ["assets_point", "供水设施"],
+      ["pipelines", "供水管线"],
+      ["inspections", "巡检记录"],
+      ["repairs", "维修记录"],
+      ["attachments", "附件"]
+    ];
+
+    let ok = true;
+    for (let i = 0; i < definitions.length; i++) {
+      ok = addBusinessLayer(databasePath, definitions[i][0], definitions[i][1]) && ok;
+    }
+    return ok;
   }
 
   function simplifyInterface() {
@@ -1370,7 +1442,7 @@ Item {
 
         Label {
           Layout.fillWidth: true
-          text: "第一次使用只需要选择一次供水数据。以后打开软件会直接回到地图。"
+          text: "正在准备供水巡检地图。如果自动初始化失败，可以手动打开已有的供水数据。"
           wrapMode: Text.WordWrap
           horizontalAlignment: Text.AlignHCenter
           color: QfTheme.secondaryTextColor
