@@ -239,11 +239,13 @@ def configure_fields(api, layers):
             QgsDefaultValue(expression),
         )
 
-    # QGIS's ExternalResource widget is the Attachment widget used by QField.
-    layers["attachments"].setEditorWidgetSetup(
-        field_index(layers["attachments"], "file_path"),
-        QgsEditorWidgetSetup("ExternalResource", profile.ATTACHMENT_CONFIG),
-    )
+    # QField's ExternalResource widget maps these viewer modes to its
+    # native camera, video recorder, microphone and file picker controls.
+    for field_name, config in profile.ATTACHMENT_CONFIGS.items():
+        layers["attachments"].setEditorWidgetSetup(
+            field_index(layers["attachments"], field_name),
+            QgsEditorWidgetSetup("ExternalResource", config),
+        )
 
 
 def configure_relations(api, project, layers):
