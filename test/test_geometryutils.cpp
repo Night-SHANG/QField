@@ -39,6 +39,13 @@ TEST_CASE( "GeometryUtils" )
 
   model->setGeometryType( mLayer->geometryType() );
 
+  SECTION( "DistanceBetweenGeometryAndPoint" )
+  {
+    const QgsGeometry line = QgsGeometry::fromWkt( QStringLiteral( "LineString (0 0, 10 0)" ) );
+    REQUIRE( QfGeometryUtils::distanceBetweenGeometryAndPoint( line, QgsPoint( 5, 4 ) ) == Approx( 4.0 ) );
+    REQUIRE( std::isnan( QfGeometryUtils::distanceBetweenGeometryAndPoint( QgsGeometry(), QgsPoint( 5, 4 ) ) ) );
+  }
+
   SECTION( "PolygonFromRubberband" )
   {
     const QgsCoordinateReferenceSystem crs = QgsCoordinateReferenceSystem::fromEpsgId( 3946 );
