@@ -19,6 +19,7 @@ Item {
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
   property bool searchBusy: false
+  property int nearbyRadiusMeters: 500
 
   Component.onCompleted: {
     iface.addItemToPluginsToolbar(waterworksButton)
@@ -80,6 +81,22 @@ Item {
     return String(value || "").replace(/'/g, "''")
   }
 
+  function appendAssetResult(feature) {
+    const idValue = feature.attribute("id")
+    const nameValue = feature.attribute("name")
+    const codeValue = feature.attribute("code")
+    const typeValue = feature.attribute("asset_type")
+    const statusValue = feature.attribute("status")
+
+    assetSearchResults.append({
+      "assetId": idValue === null || idValue === undefined ? "" : String(idValue),
+      "assetName": nameValue === null || nameValue === undefined || String(nameValue).length === 0 ? "未命名点位" : String(nameValue),
+      "assetCode": codeValue === null || codeValue === undefined ? "" : String(codeValue),
+      "assetType": typeValue === null || typeValue === undefined ? "" : String(typeValue),
+      "assetStatus": statusValue === null || statusValue === undefined ? "" : String(statusValue)
+    })
+  }
+
   function searchAssets(term) {
     assetSearchResults.clear()
 
@@ -105,20 +122,7 @@ Item {
     let count = 0
 
     while (iterator.hasNext() && count < 100) {
-      const feature = iterator.next()
-      const idValue = feature.attribute("id")
-      const nameValue = feature.attribute("name")
-      const codeValue = feature.attribute("code")
-      const typeValue = feature.attribute("asset_type")
-      const statusValue = feature.attribute("status")
-
-      assetSearchResults.append({
-        "assetId": idValue === null || idValue === undefined ? "" : String(idValue),
-        "assetName": nameValue === null || nameValue === undefined || String(nameValue).length === 0 ? "未命名点位" : String(nameValue),
-        "assetCode": codeValue === null || codeValue === undefined ? "" : String(codeValue),
-        "assetType": typeValue === null || typeValue === undefined ? "" : String(typeValue),
-        "assetStatus": statusValue === null || statusValue === undefined ? "" : String(statusValue)
-      })
+      appendAssetResult(iterator.next())
       count++
     }
 
@@ -128,6 +132,59 @@ Item {
       mainWindow.displayToast("未找到匹配点位")
     } else if (count === 100 && iterator.hasNext()) {
       mainWindow.displayToast("结果超过 100 条，请输入更精确的名称或编号")
+    }
+  }
+
+  function loadNearbyAssets(radiusMeters) {
+    assetSearchResults.clear()
+
+    const layer = assetLayer()
+    if (!layer) {
+      mainWindow.displayToast("当前项目缺少“供水设施”图层")
+      return
+    }
+
+    const positioning = iface.positioning()
+    if (!positioning || !positioning.active || !positioning.positionInformation) {
+      mainWindow.displayToast("请先开启定位")
+      return
+    }
+
+    const info = positioning.positionInformation
+    if (!info.longitudeValid || !info.latitudeValid) {
+      mainWindow.displayToast("暂未获得有效定位")
+      return
+    }
+
+    const radius = Math.max(10, Math.min(5000, Number(radiusMeters)))
+    nearbyRadiusMeters = radius
+    searchBusy = true
+
+    // Wubao is in UTM zone 49N. Transforming both geometries to EPSG:32649
+    // gives a meter-based distance filter while the master data remains
+    // CGCS2000/EPSG:4490.
+    const lon = Number(info.longitude)
+    const lat = Number(info.latitude)
+    const expression =
+      "distance(" +
+      "transform($geometry, 'EPSG:4490', 'EPSG:32649'), " +
+      "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', 'EPSG:32649')" +
+      ") <= " + radius
+
+    const iterator = LayerUtils.createFeatureIteratorFromExpression(layer, expression)
+    let count = 0
+    while (iterator.hasNext() && count < 100) {
+      appendAssetResult(iterator.next())
+      count++
+    }
+
+    searchBusy = false
+    assetSearchField.text = ""
+
+    if (count === 0) {
+      mainWindow.displayToast(radius + " 米内没有点位")
+    } else {
+      mainWindow.displayToast("已载入 " + count + " 个附近点位")
     }
   }
 
@@ -292,6 +349,33 @@ Item {
         text: "查找点位"
         font.bold: true
         color: Theme.mainTextColor
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: 6
+
+        ComboBox {
+          id: nearbyRadiusCombo
+          model: [
+            { text: "100 m", value: 100 },
+            { text: "300 m", value: 300 },
+            { text: "500 m", value: 500 },
+            { text: "1 km", value: 1000 },
+            { text: "2 km", value: 2000 }
+          ]
+          textRole: "text"
+          currentIndex: 2
+        }
+
+        Button {
+          text: "附近点位"
+          enabled: !searchBusy
+          onClicked: {
+            const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex]
+            plugin.loadNearbyAssets(item.value)
+          }
+        }
       }
 
       RowLayout {
