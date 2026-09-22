@@ -140,13 +140,13 @@ VALUE_MAPS = {
         {"继续观察": "monitor"},
         {"未解决": "unresolved"},
     ],
-}
     ("attachments", "media_type"): [
         {"照片": "photo"},
         {"视频": "video"},
         {"录音": "audio"},
         {"文档": "document"},
     ],
+}
 
 DEFAULTS = {
     ("assets_point", "id"): "uuid('WithoutBraces')",
