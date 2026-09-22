@@ -219,6 +219,29 @@ ATTACHMENT_CONFIGS = {
     "document_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 0},
 }
 
+ATTACHMENT_NAMING = {
+    "photo_path": (
+        "'attachments/photos/' || "
+        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        "'/' || uuid('WithoutBraces') || '.{extension}'"
+    ),
+    "video_path": (
+        "'attachments/videos/' || "
+        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        "'/' || uuid('WithoutBraces') || '.{extension}'"
+    ),
+    "audio_path": (
+        "'attachments/audio/' || "
+        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        "'/' || uuid('WithoutBraces') || '.{extension}'"
+    ),
+    "document_path": (
+        "'attachments/documents/' || "
+        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        "'/' || uuid('WithoutBraces') || '_{filename}'"
+    ),
+}
+
 
 ASSET_SYMBOLS = {
     "valve_well": {"label": "阀门井", "shape": "circle", "color": "#1976D2", "size": "4.6"},
