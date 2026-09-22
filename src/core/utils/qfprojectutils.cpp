@@ -23,6 +23,7 @@
 #include <qgsattributeeditorfield.h>
 #include <qgsattributeeditorrelation.h>
 #include <qgsmaplayer.h>
+#include <qgslayertree.h>
 #include <qgsprojectdisplaysettings.h>
 #include <qgsrasterlayer.h>
 #include <qgsrelationcontext.h>
@@ -57,6 +58,25 @@ bool QfProjectUtils::addMapLayer( QgsProject *project, QgsMapLayer *layer )
     return false;
 
   return ( project->addMapLayer( layer ) );
+}
+
+bool QfProjectUtils::addMapLayerAtBottom( QgsProject *project, QgsMapLayer *layer )
+{
+  if ( !project || !layer )
+    return false;
+
+  if ( !project->addMapLayer( layer, false ) )
+    return false;
+
+  QgsLayerTree *root = project->layerTreeRoot();
+  if ( !root )
+  {
+    project->removeMapLayer( layer );
+    return false;
+  }
+
+  root->addLayer( layer );
+  return true;
 }
 
 void QfProjectUtils::removeMapLayer( QgsProject *project, QgsMapLayer *layer )
