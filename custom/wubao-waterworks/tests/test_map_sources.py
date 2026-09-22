@@ -23,6 +23,16 @@ class MapSourceTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     map_sources.with_token(map_sources.IMAGERY_XYZ, token)
 
+    def test_vector_style_source_is_tokenized_separately(self) -> None:
+        url = map_sources.with_token(
+            map_sources.VECTOR_STYLE_URL,
+            "abc123",
+        )
+        self.assertIn("/abc123/VectorTileServer/styles/default.json", url)
+        self.assertNotIn("{z}", url)
+        self.assertNotIn("{x}", url)
+        self.assertNotIn("{y}", url)
+
     def test_official_sources_remain_cgcs2000_profile(self) -> None:
         self.assertEqual(map_sources.SHAANXI_CRS, "EPSG:4490")
         self.assertEqual(map_sources.MAX_ZOOM, 18)
