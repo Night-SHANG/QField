@@ -514,7 +514,10 @@ def configure_forms(api, layers, relations):
 
         root = config.invisibleRootContainer()
 
-        details = QgsAttributeEditorContainer("基本信息", root)
+        details = QgsAttributeEditorContainer(
+            "现场信息" if table in {"assets_point", "pipelines"} else "基本信息",
+            root,
+        )
         for field_name in profile.FORM_FIELDS.get(table, []):
             details.addChildElement(
                 QgsAttributeEditorField(
@@ -546,10 +549,20 @@ def configure_forms(api, layers, relations):
 
         config.addTab(details)
 
-        relation_ids = profile.FORM_RELATIONS.get(table, [])
-        if relation_ids:
-            history = QgsAttributeEditorContainer("关联记录", root)
-            for relation_id in relation_ids:
+        attachment_relation_ids = profile.FORM_ATTACHMENT_RELATIONS.get(table, [])
+        if attachment_relation_ids:
+            media = QgsAttributeEditorContainer("照片 / 附件", root)
+            for relation_id in attachment_relation_ids:
+                relation = relations[relation_id]
+                relation_widget = QgsAttributeEditorRelation(relation, media)
+                relation_widget.setLabel("添加照片 / 附件")
+                media.addChildElement(relation_widget)
+            config.addTab(media)
+
+        history_relation_ids = profile.FORM_HISTORY_RELATIONS.get(table, [])
+        if history_relation_ids:
+            history = QgsAttributeEditorContainer("历史记录", root)
+            for relation_id in history_relation_ids:
                 relation = relations[relation_id]
                 relation_widget = QgsAttributeEditorRelation(relation, history)
                 relation_widget.setLabel(relation.name())
