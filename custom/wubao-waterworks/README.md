@@ -75,3 +75,13 @@ python custom/wubao-waterworks/tools/build_project_bundle.py \
 
 天地图 Token 不写入 Git 仓库，推荐通过 `TDT_SHAANXI_TOKEN` 环境变量传入。
 生成后的本地 QGIS/QField 项目为了访问在线瓦片会包含实际服务 URL，因此包含 Token 的项目包应视为内部工作数据，不应直接提交到公开仓库。离线部署可以完全不提供在线 Token。
+
+## 开发期 CI 策略
+
+为避免每次业务提交都触发 QField 全平台构建，开发阶段采用两级检查：
+
+- 日常提交到 `feature/wubao-waterworks`：只运行轻量 `吴堡供水巡检 Preflight`，检查 Python 语法、业务测试、主题 JSON 和专用层结构。
+- `吴堡供水巡检 Android` 完整 APK：仅通过手动 `workflow_dispatch` 触发，用于阶段性真机包。
+- QField 原生 Android / Linux / Windows / macOS / iOS / CodeQL 等完整矩阵：仅在阶段性 PR 或合并前运行，不把长期开发 PR 保持为开启状态。
+
+这样普通功能开发不会重复消耗完整编译时间，同时仍保留阶段性全量回归能力。
