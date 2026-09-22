@@ -1,0 +1,200 @@
+---
+name: 🚰 吴堡供水巡检 Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/wubao-waterworks
+    paths:
+      - 'custom/wubao-waterworks/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/wubao-android.yml'
+      - 'src/**'
+      - 'platform/android/**'
+      - 'scripts/**'
+
+concurrency:
+  group: wubao-waterworks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CUSTOM_APP_NAME: 吴堡供水巡检
+  NIGHTLY_PACKAGE_NAME: ch.opengis.wubao_waterworks
+
+jobs:
+  preflight:
+    name: 配置静态检查
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+
+      - name: Verify custom profile
+        shell: bash
+        run: |
+          set -u
+          failures=0
+
+          for path in \
+            custom/wubao-waterworks/README.md \
+            custom/wubao-waterworks/theme.json \
+            custom/wubao-waterworks/plugins/wubao-waterworks/main.qml \
+            custom/wubao-waterworks/plugins/wubao-waterworks/metadata.txt \
+            custom/wubao-waterworks/schema/README.md
+          do
+            if [[ ! -f "${path}" ]]; then
+              echo "::error::Missing required file: ${path}"
+              failures=$((failures + 1))
+            fi
+          done
+
+          python3 -m json.tool custom/wubao-waterworks/theme.json >/dev/null || failures=$((failures + 1))
+
+          grep -q 'objectName: "wubaoWaterworksPlugin"' custom/wubao-waterworks/plugins/wubao-waterworks/main.qml || {
+            echo "::error::Waterworks plugin root object is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'APP_BUNDLED_PLUGINS' CMakeLists.txt || {
+            echo "::error::Bundled plugin build option is missing"
+            failures=$((failures + 1))
+          }
+
+          exit "${failures}"
+
+  android-arm64:
+    name: Android arm64 Debug APK
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Reclaim disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: Prepare Android environment
+        shell: bash
+        run: |
+          NDK_VERSION=28.2.13676358
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> "$GITHUB_ENV"
+          echo "ANDROID_BUILD_TOOLS_VERSION=35.0.1" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_VERSION=${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+          echo "ndk.dir=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> local.properties
+          ALL_FILES_ACCESS=OFF ./scripts/ci/env_gh.sh
+          echo "BUILD_ROOT=/home/runner" >> "$GITHUB_ENV"
+          echo "BUILD_TYPE=Debug" >> "$GITHUB_ENV"
+          echo "CMAKE_BUILD_DIR=/home/runner/builddir" >> "$GITHUB_ENV"
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1.322.0
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6.0.0
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Mono
+        run: |
+          sudo apt install -y ca-certificates gnupg
+          sudo gpg --homedir /tmp --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/mono-official-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF
+          sudo chmod +r /usr/share/keyrings/mono-official-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/mono-official-archive-keyring.gpg] https://download.mono-project.com/repo/ubuntu stable-focal main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
+          sudo apt update
+          sudo apt install -y mono-devel
+
+      - name: Setup CMake and Ninja
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.29.0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gperf autopoint '^libxcb.*-dev' libxrandr-dev libx11-xcb-dev libsm-dev libegl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev autoconf-archive libgstreamer-gl1.0-0 libgstreamer-plugins-base1.0-0 libfuse2 libcups2-dev nasm libltdl-dev
+          wget https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-linux-x86_64.sh -O /tmp/cmakeinstall.sh
+          chmod +x /tmp/cmakeinstall.sh
+          sudo /tmp/cmakeinstall.sh --prefix=/usr/local --exclude-subdir
+          rm /tmp/cmakeinstall.sh
+
+      - name: Generate version details
+        shell: bash
+        run: |
+          source ./scripts/version_number.sh
+          TRIPLET=arm64-android ALL_FILES_ACCESS=OFF source ./scripts/ci/generate-version-details.sh
+          {
+            echo "APP_NAME=${APP_NAME}"
+            echo "APP_PACKAGE_NAME=${APP_PACKAGE_NAME}"
+            echo "APP_ICON=${APP_ICON}"
+            echo "APP_VERSION=${APP_VERSION}"
+            echo "APP_VERSION_STR=${APP_VERSION_STR}"
+            echo "APK_VERSION_CODE=${APK_VERSION_CODE}"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          cmake -S "${{ github.workspace }}" \
+                -B "${CMAKE_BUILD_DIR}" \
+                -G Ninja \
+                -D CMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+                -D ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT}" \
+                -D ANDROID_NDK_VERSION="${ANDROID_NDK_VERSION}" \
+                -D ANDROID_BUILD_TOOLS_VERSION="${ANDROID_BUILD_TOOLS_VERSION}" \
+                -D VCPKG_TARGET_TRIPLET=arm64-android \
+                -D VCPKG_INSTALL_OPTIONS="--allow-unsupported;--x-abi-tools-use-exact-versions" \
+                -D WITH_ALL_FILES_ACCESS=OFF \
+                -D WITH_SPIX=OFF \
+                -D WITH_SAMPLE_PROJECTS=OFF \
+                -D APP_VERSION="${APP_VERSION}" \
+                -D APK_VERSION_CODE="${APK_VERSION_CODE}" \
+                -D APP_VERSION_STR="${APP_VERSION_STR}" \
+                -D APP_PACKAGE_NAME="${APP_PACKAGE_NAME}" \
+                -D APP_ICON="${APP_ICON}" \
+                -D APP_NAME="${APP_NAME}" \
+                -D APP_THEME_PATH="${{ github.workspace }}/custom/wubao-waterworks/theme.json" \
+                -D APP_BUNDLED_PLUGINS="${{ github.workspace }}/custom/wubao-waterworks/plugins" \
+                -D NUGET_USERNAME=opengisch \
+                -D NUGET_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Build
+        run: cmake --build "${CMAKE_BUILD_DIR}" --config "${BUILD_TYPE}"
+
+      - name: Package debug APK
+        run: |
+          cmake --build "${CMAKE_BUILD_DIR}" --target bundle --config "${BUILD_TYPE}"
+          APK="${CMAKE_BUILD_DIR}/src/app/android-build/build/outputs/apk/debug/android-build-debug.apk"
+          test -f "${APK}"
+          cp "${APK}" /tmp/wubao-waterworks-arm64-debug.apk
+
+      - name: Upload dependency logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wubao-build-logs
+          if-no-files-found: ignore
+          path: |
+            ${{ env.CMAKE_BUILD_DIR }}/**/*.log
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: wubao-waterworks-arm64-debug
+          if-no-files-found: error
+          path: /tmp/wubao-waterworks-arm64-debug.apk
