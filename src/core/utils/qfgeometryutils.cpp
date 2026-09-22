@@ -390,16 +390,6 @@ double QfGeometryUtils::distanceBetweenPoints( const QgsPoint &start, const QgsP
   return start.distance( end );
 }
 
-double QfGeometryUtils::distanceBetweenGeometryAndPoint( const QgsGeometry &geometry, const QgsPoint &point )
-{
-  if ( geometry.isNull() || point.isEmpty() )
-  {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-
-  return geometry.distance( QgsGeometry( point.clone() ) );
-}
-
 QgsPoint QfGeometryUtils::reprojectPointToWgs84( const QgsPoint &point, const QgsCoordinateReferenceSystem &crs )
 {
   const QgsCoordinateReferenceSystem wgs84Crs = QgsCoordinateReferenceSystem( QStringLiteral( "EPSG:4326" ) );
