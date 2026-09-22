@@ -34,7 +34,7 @@ class QfGeometry : public QObject
   public:
     explicit QfGeometry( QObject *parent = nullptr );
 
-    QgsGeometry asQgsGeometry() const;
+    Q_INVOKABLE QgsGeometry asQgsGeometry() const;
 
     QfRubberbandModel *rubberbandModel() const;
     void setRubberbandModel( QfRubberbandModel *rubberbandModel );
