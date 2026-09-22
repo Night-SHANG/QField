@@ -47,6 +47,7 @@ QfPaneDrawer {
 
   property bool allowEdit
   property bool allowDelete
+  property bool allowProcessing: true
 
   property bool multiSelection: false
 
@@ -484,6 +485,7 @@ QfPaneDrawer {
     rightMargin: mainWindow.sceneRightMargin
 
     allowDelete: allowDelete
+    allowProcessing: featureFormList.allowProcessing
     model: globalFeaturesList.model
     selection: featureFormList.selection
     multiSelection: featureFormList.multiSelection
