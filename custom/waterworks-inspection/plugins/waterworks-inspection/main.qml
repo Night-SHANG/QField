@@ -28,6 +28,9 @@ Item {
   readonly property var attachmentLayerNames: ["附件", "attachments"]
   property bool searchBusy: false
   property bool searchPanelVisible: false
+  property string queryMode: "search"
+  property string queryObjectKind: "asset"
+  property bool queryFiltersExpanded: false
   property bool waterworksProjectReady: false
   property var pendingAssetGeometry
   property var pendingPipelineGeometry
@@ -43,12 +46,12 @@ Item {
     category: "QField"
     property bool loadProjectOnLaunch: true
     property bool showMyLocationMarker: true
+    property bool editEnabled: false
   }
   property int nearbyRadiusMeters: 500
   property real accuracyWarningMeters: 15
 
   Component.onCompleted: {
-    iface.addItemToPluginsToolbar(waterworksButton);
     workerAppSettings.loadProjectOnLaunch = true;
     refreshProjectState();
     Qt.callLater(function () {
@@ -293,6 +296,10 @@ Item {
       qfieldSettings.autoOpenFormSingleIdentify = true;
       qfieldSettings.autoZoomToIdentifiedFeature = true;
     }
+    if (featureForm) {
+      featureForm.allowEdit = workerAppSettings.editEnabled;
+      featureForm.allowDelete = workerAppSettings.editEnabled;
+    }
     if (welcomeCloud) {
       welcomeCloud.visible = false;
     }
@@ -305,7 +312,7 @@ Item {
   }
 
   function chooseWaterworksProject() {
-    waterworksDialog.close();
+    closeTransientPanels();
     simplifyInterface();
     iface.clearProject();
     Qt.callLater(function () {
@@ -329,6 +336,70 @@ Item {
     }
   }
 
+  function editAllowed(actionName) {
+    if (workerAppSettings.editEnabled) {
+      return true;
+    }
+    mainWindow.displayToast((actionName || "该操作") + "需要先切换到编辑模式");
+    return false;
+  }
+
+  function setEditEnabled(enabled) {
+    workerAppSettings.editEnabled = enabled;
+    if (featureForm) {
+      featureForm.allowEdit = enabled;
+      featureForm.allowDelete = enabled;
+      if (!enabled && featureForm.state === "FeatureFormEdit") {
+        featureForm.state = "FeatureForm";
+      }
+    }
+    mainWindow.displayToast(enabled ? "已进入编辑模式，可以新增和修改数据" : "已进入查看模式，数据不会被修改");
+  }
+
+  function closeTransientPanels() {
+    if (browserDrawer && browserDrawer.opened) {
+      browserDrawer.close();
+    }
+    if (addDrawer && addDrawer.opened) {
+      addDrawer.close();
+    }
+    if (moreDrawer && moreDrawer.opened) {
+      moreDrawer.close();
+    }
+  }
+
+  function clearQueryHighlight() {
+    const points = assetLayer();
+    const pipes = pipelineLayer();
+    if (points) {
+      QfLayerUtils.clearLayerSelection(points);
+    }
+    if (pipes) {
+      QfLayerUtils.clearLayerSelection(pipes);
+    }
+  }
+
+  function openBrowser(mode) {
+    queryMode = mode;
+    queryObjectKind = "asset";
+    queryFiltersExpanded = false;
+    assetSearchResults.clear();
+    clearQueryHighlight();
+    browserDrawer.open();
+    if (mode === "nearby") {
+      Qt.callLater(function () {
+        loadNearbyKind("asset");
+      });
+    }
+  }
+
+  function openAddPanel() {
+    if (!editAllowed("新增")) {
+      return;
+    }
+    addDrawer.open();
+  }
+
   function setMyLocationMarkerVisible(visible) {
     workerAppSettings.showMyLocationMarker = visible;
     const locationMarker = iface.findItemByObjectName("locationMarker");
@@ -345,18 +416,20 @@ Item {
       return;
     }
 
-    waterworksDialog.close();
+    closeTransientPanels();
     gnssButton.clicked();
   }
 
   function loadNearbyKind(objectKind) {
-    searchPanelVisible = true;
-    searchTargetFilter.currentIndex = objectKind === "pipeline" ? 1 : 0;
-    const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex];
-    loadNearbyObjects(item.value);
+    queryObjectKind = objectKind;
+    const item = nearbyRadiusFilter.model[nearbyRadiusFilter.currentIndex];
+    loadNearbyObjects(item.value, objectKind);
   }
 
   function startPipelineCapture() {
+    if (!editAllowed("新建管线")) {
+      return;
+    }
     const layer = pipelineLayer();
     const digitizingToolbar = iface.findItemByObjectName("digitizingToolbar");
     if (!layer || !digitizingToolbar) {
@@ -365,7 +438,7 @@ Item {
     }
 
     pendingPipelineGeometry = null;
-    waterworksDialog.close();
+    closeTransientPanels();
     digitizingToolbar.geometryRequestedLayer = layer;
     digitizingToolbar.geometryRequestedItem = pipelineGeometryReceiver;
     digitizingToolbar.geometryRequested = true;
@@ -373,6 +446,9 @@ Item {
   }
 
   function savePipelineEntry() {
+    if (!editAllowed("保存管线")) {
+      return;
+    }
     const layer = pipelineLayer();
     if (!layer || !pendingPipelineGeometry) {
       mainWindow.displayToast("无法保存管线");
@@ -484,7 +560,7 @@ Item {
       return;
     }
 
-    waterworksDialog.close();
+    closeTransientPanels();
     projectFolderButton.clicked();
   }
 
@@ -511,25 +587,22 @@ Item {
   }
 
   function selectedSearchKind() {
-    if (!searchTargetFilter || searchTargetFilter.currentIndex < 0) {
-      return "asset";
-    }
-    return searchTargetFilter.model[searchTargetFilter.currentIndex].value;
+    return queryObjectKind;
   }
 
   function selectedAssetType() {
-    if (!assetTypeFilter || assetTypeFilter.currentIndex < 0) {
+    if (!searchAssetTypeFilter || searchAssetTypeFilter.currentIndex < 0) {
       return "";
     }
-    const item = assetTypeOptions.get(assetTypeFilter.currentIndex);
+    const item = assetTypeOptions.get(searchAssetTypeFilter.currentIndex);
     return item ? String(item.value || "") : "";
   }
 
   function selectedAssetStatus() {
-    if (!assetStatusFilter || assetStatusFilter.currentIndex < 0) {
+    if (!searchAssetStatusFilter || searchAssetStatusFilter.currentIndex < 0) {
       return "";
     }
-    return assetStatusFilter.model[assetStatusFilter.currentIndex].value;
+    return searchAssetStatusFilter.model[searchAssetStatusFilter.currentIndex].value;
   }
 
   function applySearchFilters(baseExpression, objectKind) {
@@ -553,7 +626,7 @@ Item {
       clauses.push("\"status\" = '" + escapeExpressionString(statusValue) + "'");
     }
 
-    if (uninspectedOnly && uninspectedOnly.checked) {
+    if (searchUninspectedOnly && searchUninspectedOnly.checked) {
       clauses.push("\"last_inspection_at\" IS NULL");
     }
 
@@ -836,7 +909,7 @@ Item {
       featureForm.extentController.zoomToAllFeatures();
     }
     featureForm.state = "Hidden";
-    waterworksDialog.close();
+    closeTransientPanels();
     if (showToast !== false) {
       mainWindow.displayToast(objectKind === "pipeline" ? "已定位到管线，点击地图对象可查看详情" : "已定位到点位，点击地图标记可查看详情");
     }
@@ -851,11 +924,14 @@ Item {
     }
 
     navigation.setDestinationFeature(feature, layer);
-    waterworksDialog.close();
+    closeTransientPanels();
     mainWindow.displayToast("开始导航：" + QfFeatureUtils.displayName(layer, feature));
   }
 
   function openObject(objectKind, objectId, editMode) {
+    if (editMode && !editAllowed("编辑")) {
+      editMode = false;
+    }
     const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
     if (!layer || !featureForm || !objectId) {
       mainWindow.displayToast(objectKind === "pipeline" ? "无法打开管线" : "无法打开点位");
@@ -866,7 +942,7 @@ Item {
     featureForm.model.setFeatures(layer, "\"id\" = '" + escapedId + "'");
     featureForm.selection.focusedItem = 0;
     featureForm.state = editMode ? "FeatureFormEdit" : "FeatureForm";
-    waterworksDialog.close();
+    closeTransientPanels();
   }
 
   function newObjectId() {
@@ -950,6 +1026,9 @@ Item {
   }
 
   function createAssetAtCurrentPosition() {
+    if (!editAllowed("新增点位")) {
+      return;
+    }
     const layer = assetLayer();
     if (!layer) {
       mainWindow.displayToast("当前供水数据缺少点位图层");
@@ -980,6 +1059,9 @@ Item {
   }
 
   function saveAssetEntry() {
+    if (!editAllowed("保存点位")) {
+      return;
+    }
     const layer = assetLayer();
     if (!layer || !pendingAssetGeometry) {
       mainWindow.displayToast("无法保存点位");
@@ -1041,6 +1123,9 @@ Item {
   }
 
   function createInspection(objectId, objectKind) {
+    if (!editAllowed("巡检记录")) {
+      return;
+    }
     const layer = inspectionLayer();
     if (!layer) {
       mainWindow.displayToast("当前项目缺少“巡检记录”图层");
@@ -1069,11 +1154,14 @@ Item {
 
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
-    waterworksDialog.close();
+    closeTransientPanels();
     overlayFeatureFormDrawer.open();
   }
 
   function createRepair(objectId, objectKind) {
+    if (!editAllowed("维修记录")) {
+      return;
+    }
     const layer = repairLayer();
     if (!layer) {
       mainWindow.displayToast("当前项目缺少“维修记录”图层");
@@ -1093,11 +1181,14 @@ Item {
 
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
-    waterworksDialog.close();
+    closeTransientPanels();
     overlayFeatureFormDrawer.open();
   }
 
   function createAttachment(objectId, objectKind) {
+    if (!editAllowed("添加附件")) {
+      return;
+    }
     const layer = attachmentLayer();
     if (!layer) {
       mainWindow.displayToast("当前项目缺少“附件”图层");
@@ -1117,7 +1208,7 @@ Item {
 
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
-    waterworksDialog.close();
+    closeTransientPanels();
     overlayFeatureFormDrawer.open();
   }
 
