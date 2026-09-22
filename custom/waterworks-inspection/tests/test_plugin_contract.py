@@ -49,6 +49,12 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("model: assetTypeOptions", self.text)
         self.assertNotIn('case "valve_well"', self.text)
 
+    def test_backup_entry_reuses_qfield_project_folder(self) -> None:
+        self.assertIn('iface.findItemByObjectName("projectFolderButton")', self.text)
+        self.assertIn("function openProjectBackup()", self.text)
+        self.assertIn("projectFolderButton.clicked()", self.text)
+        self.assertIn('text: "备份 / 导出项目"', self.text)
+
     def test_navigation_reuses_qfield_navigation(self) -> None:
         self.assertIn('iface.findItemByObjectName("navigation")', self.text)
         self.assertIn("navigation.setDestinationFeature", self.text)
