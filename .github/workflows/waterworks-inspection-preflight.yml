@@ -137,6 +137,16 @@ jobs:
             failures=$((failures + 1))
           }
 
+          grep -q 'Q_INVOKABLE static bool configureField' src/core/utils/qflayerutils.h || {
+            echo "::error::Runtime layer form configuration hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'objectName: "locationMarker"' src/app/qml/QgisMobileapp.qml || {
+            echo "::error::Location marker visibility hook is missing"
+            failures=$((failures + 1))
+          }
+
           grep -q 'cmakeVersion: 3.31.6'             .github/workflows/waterworks-inspection-android.yml || {
               echo "::error::Waterworks Android workflow must pin CMake 3.31.6"
               failures=$((failures + 1))
