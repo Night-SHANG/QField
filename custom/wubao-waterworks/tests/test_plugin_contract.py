@@ -43,5 +43,16 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("nearbyRadiusMeters", self.text)
 
 
+    def test_navigation_reuses_qfield_navigation(self) -> None:
+        self.assertIn('iface.findItemByObjectName("navigation")', self.text)
+        self.assertIn("navigation.setDestinationFeature", self.text)
+
+    def test_search_iterators_are_closed(self) -> None:
+        self.assertGreaterEqual(self.text.count("iterator.close()"), 3)
+
+    def test_inspection_accuracy_checks_validity(self) -> None:
+        self.assertIn("info.haccValid", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()
