@@ -21,6 +21,7 @@ Item {
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
   readonly property var repairLayerNames: ["维修记录", "repairs"]
+  readonly property var attachmentLayerNames: ["附件", "attachments"]
   property bool searchBusy: false
   property int nearbyRadiusMeters: 500
 
@@ -51,6 +52,16 @@ Item {
   function repairLayer() {
     for (let i = 0; i < repairLayerNames.length; i++) {
       const layers = qgisProject.mapLayersByName(repairLayerNames[i])
+      if (layers && layers.length > 0) {
+        return layers[0]
+      }
+    }
+    return null
+  }
+
+  function attachmentLayer() {
+    for (let i = 0; i < attachmentLayerNames.length; i++) {
+      const layers = qgisProject.mapLayersByName(attachmentLayerNames[i])
       if (layers && layers.length > 0) {
         return layers[0]
       }
@@ -440,6 +451,30 @@ Item {
     overlayFeatureFormDrawer.open()
   }
 
+  function createAssetAttachment(assetId) {
+    const layer = attachmentLayer()
+    if (!layer) {
+      mainWindow.displayToast("当前项目缺少“附件”图层")
+      return
+    }
+    if (!assetId) {
+      mainWindow.displayToast("无法确定附件所属设施")
+      return
+    }
+    if (!overlayFeatureFormDrawer) {
+      mainWindow.displayToast("无法打开附件表单")
+      return
+    }
+
+    const feature = QfFeatureUtils.createFeature(layer)
+    feature.setAttribute("asset_id", assetId)
+
+    overlayFeatureFormDrawer.featureModel.feature = feature
+    overlayFeatureFormDrawer.state = "Add"
+    waterworksDialog.close()
+    overlayFeatureFormDrawer.open()
+  }
+
   QfToolButton {
     id: waterworksButton
     objectName: "wubaoWaterworksButton"
@@ -691,6 +726,12 @@ Item {
                 Layout.fillWidth: true
                 text: "维修"
                 onClicked: plugin.createRepair(assetId)
+              }
+
+              Button {
+                Layout.fillWidth: true
+                text: "附件"
+                onClicked: plugin.createAssetAttachment(assetId)
               }
             }
           }
