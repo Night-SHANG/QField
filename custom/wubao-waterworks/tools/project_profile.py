@@ -250,3 +250,17 @@ ELSE '未命名点位'
 END"""
 
 ASSET_LABEL_MIN_SCALE = 12000
+
+
+SUPPORTED_OFFLINE_BASEMAP_EXTENSIONS = {
+    ".mbtiles",
+    ".tif",
+    ".tiff",
+}
+
+PROJECT_DIRECTORIES = (
+    "attachments/photos",
+    "attachments/videos",
+    "attachments/audio",
+    "attachments/documents",
+)
