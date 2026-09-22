@@ -1444,6 +1444,7 @@ ApplicationWindow {
 
       QfToolButton {
         id: gnssCursorLockButton
+        objectName: "gnssCursorLockButton"
         text: qsTr("Cursor lock")
         display: AbstractButton.TextUnderIcon
         font: QfTheme.tinyFont
@@ -1500,6 +1501,7 @@ ApplicationWindow {
 
       QfToolButton {
         id: gnssCanvasLockButton
+        objectName: "gnssCanvasLockButton"
         text: qsTr("Map lock")
         display: AbstractButton.TextUnderIcon
         font: QfTheme.tinyFont
@@ -1561,6 +1563,7 @@ ApplicationWindow {
 
       QfToolButton {
         id: addBookmarkAtCurrentLocationButton
+        objectName: "addBookmarkAtCurrentLocationButton"
         text: qsTr("Add bookmark")
         display: AbstractButton.TextUnderIcon
         font: QfTheme.tinyFont
@@ -1631,6 +1634,7 @@ ApplicationWindow {
 
       QfToolButton {
         id: showGnssInformation
+        objectName: "showGnssInformationButton"
         text: qsTr("Position info")
         display: AbstractButton.TextUnderIcon
         font: QfTheme.tinyFont
@@ -1674,6 +1678,7 @@ ApplicationWindow {
 
       QfToolButton {
         id: trackingButton
+        objectName: "gnssTrackingButton"
         text: qsTr("Tracking")
         display: AbstractButton.TextUnderIcon
         font: QfTheme.tinyFont
