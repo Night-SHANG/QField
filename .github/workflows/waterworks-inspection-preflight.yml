@@ -175,6 +175,21 @@ jobs:
             failures=$((failures + 1))
           }
 
+          grep -q '!isSuccess && ( !wasEditing || !flushBuffer )' src/core/utils/qflayerutils.cpp || {
+            echo "::error::Failed deletion rollback guard is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'enabled: toolBar.allowDelete &&' src/gui/qml/QfNavigationBar.qml || {
+            echo "::error::Native feature delete lock is not enforced"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'enabled: toolBar.allowProcessing &&' src/gui/qml/QfNavigationBar.qml || {
+            echo "::error::Native processing visibility lock is not enforced"
+            failures=$((failures + 1))
+          }
+
           grep -q 'property bool allowProcessing: true' src/gui/qml/QfFeatureListForm.qml || {
             echo "::error::Feature processing visibility hook is missing"
             failures=$((failures + 1))
