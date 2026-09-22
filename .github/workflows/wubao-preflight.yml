@@ -2,6 +2,14 @@
 name: 🚰 吴堡供水巡检 Preflight
 
 on:
+  push:
+    branches:
+      - feature/wubao-waterworks
+    paths:
+      - 'custom/wubao-waterworks/**'
+      - 'CMakeLists.txt'
+      - 'src/app/CMakeLists.txt'
+      - '.github/workflows/wubao-preflight.yml'
   pull_request:
     paths:
       - 'custom/wubao-waterworks/**'
