@@ -27,7 +27,7 @@ Item {
   readonly property var repairLayerNames: ["维修记录", "repairs"]
   readonly property var attachmentLayerNames: ["附件", "attachments"]
   property bool searchBusy: false
-  property bool advancedMode: false
+  property bool searchPanelVisible: false
   property bool waterworksProjectReady: false
 
   Settings {
@@ -43,7 +43,7 @@ Item {
     workerAppSettings.loadProjectOnLaunch = true;
     refreshProjectState();
     Qt.callLater(function () {
-      applyWorkerMode(false);
+      simplifyInterface();
     });
   }
 
@@ -54,7 +54,7 @@ Item {
       workerAppSettings.loadProjectOnLaunch = true;
       Qt.callLater(function () {
         refreshProjectState();
-        applyWorkerMode(false);
+        simplifyInterface();
       });
     }
   }
@@ -64,9 +64,7 @@ Item {
     loadAssetTypeOptions();
   }
 
-  function applyWorkerMode(enableAdvanced) {
-    advancedMode = !!enableAdvanced;
-
+  function simplifyInterface() {
     const mainMenuBar = iface.findItemByObjectName("mainMenuBar");
     const mainToolbar = iface.findItemByObjectName("mainToolbar");
     const zoomToolbar = iface.findItemByObjectName("zoomToolbar");
@@ -77,35 +75,34 @@ Item {
     const welcomeLocalProjects = iface.findItemByObjectName("welcomeActionLocalProjects");
 
     if (mainMenuBar) {
-      mainMenuBar.visible = advancedMode;
+      mainMenuBar.visible = false;
     }
     if (mainToolbar) {
-      mainToolbar.visible = advancedMode;
+      mainToolbar.visible = false;
     }
     if (zoomToolbar) {
-      zoomToolbar.visible = advancedMode;
+      zoomToolbar.visible = false;
     }
     if (locatorItem) {
-      locatorItem.visible = advancedMode;
+      locatorItem.visible = false;
     }
-    if (!advancedMode && dashBoard && dashBoard.opened) {
+    if (dashBoard && dashBoard.opened) {
       dashBoard.close();
     }
-
     if (welcomeCloud) {
-      welcomeCloud.visible = advancedMode;
+      welcomeCloud.visible = false;
     }
     if (welcomeNewProject) {
-      welcomeNewProject.visible = advancedMode;
+      welcomeNewProject.visible = false;
     }
     if (welcomeLocalProjects) {
-      welcomeLocalProjects.label = advancedMode ? "本地项目 / 数据" : "打开供水巡检项目";
+      welcomeLocalProjects.label = "打开供水数据";
     }
   }
 
   function chooseWaterworksProject() {
     waterworksDialog.close();
-    applyWorkerMode(false);
+    simplifyInterface();
     iface.clearProject();
     Qt.callLater(function () {
       const welcomeScreen = iface.findItemByObjectName("welcomeScreen");
@@ -128,9 +125,24 @@ Item {
   }
 
   function loadNearbyKind(objectKind) {
+    searchPanelVisible = true;
     searchTargetFilter.currentIndex = objectKind === "pipeline" ? 1 : 0;
     const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex];
     loadNearbyObjects(item.value);
+  }
+
+  function startPipelineCapture() {
+    const layer = pipelineLayer();
+    const dashBoard = iface.findItemByObjectName("dashBoard");
+    if (!layer || !dashBoard) {
+      mainWindow.displayToast("当前供水数据缺少管线图层");
+      return;
+    }
+
+    dashBoard.activeLayer = layer;
+    waterworksDialog.close();
+    mainWindow.changeMode("digitize");
+    mainWindow.displayToast("依次点击管线经过的位置，完成后点右下角 ✓，再填写管径、材质等参数");
   }
 
   function assetTypeLayer() {
@@ -730,7 +742,7 @@ Item {
 
     onClicked: {
       refreshProjectState()
-      applyWorkerMode(false)
+      simplifyInterface()
       waterworksDialog.open()
     }
   }
@@ -797,6 +809,23 @@ Item {
 
         Button {
           Layout.fillWidth: true
+          text: "新建管线"
+          onClicked: plugin.startPipelineCapture()
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: searchPanelVisible ? "收起查找" : "查找"
+          onClicked: searchPanelVisible = !searchPanelVisible
+        }
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: 6
+
+        Button {
+          Layout.fillWidth: true
           text: "附近点位"
           enabled: !searchBusy
           onClicked: plugin.loadNearbyKind("asset")
@@ -818,13 +847,15 @@ Item {
 
       Label {
         Layout.fillWidth: true
-        text: "搜索与筛选"
+        visible: searchPanelVisible
+        text: "查找"
         font.bold: true
         color: QfTheme.mainTextColor
       }
 
       RowLayout {
         Layout.fillWidth: true
+        visible: searchPanelVisible
 
         ComboBox {
           id: searchTargetFilter
@@ -853,6 +884,7 @@ Item {
 
       RowLayout {
         Layout.fillWidth: true
+        visible: searchPanelVisible
         spacing: 6
 
         ComboBox {
@@ -900,6 +932,7 @@ Item {
 
       CheckBox {
         id: uninspectedOnly
+        visible: searchPanelVisible
         Layout.fillWidth: true
         text: "仅看从未巡检"
         onToggled: assetSearchResults.clear()
@@ -907,6 +940,7 @@ Item {
 
       RowLayout {
         Layout.fillWidth: true
+        visible: searchPanelVisible
         spacing: 6
 
         ComboBox {
@@ -947,6 +981,7 @@ Item {
 
       RowLayout {
         Layout.fillWidth: true
+        visible: searchPanelVisible
 
         TextField {
           id: assetSearchField
@@ -965,7 +1000,7 @@ Item {
 
       Label {
         Layout.fillWidth: true
-        visible: assetSearchResults.count > 0
+        visible: searchPanelVisible && assetSearchResults.count > 0
         text: "找到 " + assetSearchResults.count + " 条结果"
         color: QfTheme.secondaryTextColor
       }
@@ -974,6 +1009,7 @@ Item {
         id: resultsView
         Layout.fillWidth: true
         Layout.fillHeight: true
+        visible: searchPanelVisible
         clip: true
         spacing: 6
         model: assetSearchResults
@@ -1075,25 +1111,10 @@ Item {
         }
       }
 
-      RowLayout {
+      Button {
         Layout.fillWidth: true
-        spacing: 6
-
-        Button {
-          Layout.fillWidth: true
-          text: "备份 / 导出"
-          onClicked: plugin.openProjectBackup()
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: "高级功能"
-          onClicked: {
-            plugin.applyWorkerMode(true)
-            waterworksDialog.close()
-            mainWindow.displayToast("已进入高级模式；点击“水”按钮可返回维修人员模式")
-          }
-        }
+        text: "备份 / 导出"
+        onClicked: plugin.openProjectBackup()
       }
     }
 
@@ -1110,7 +1131,7 @@ Item {
 
         Label {
           Layout.fillWidth: true
-          text: "当前不是供水巡检项目"
+          text: "还没有打开供水数据"
           font.bold: true
           font.pixelSize: 20
           horizontalAlignment: Text.AlignHCenter
@@ -1119,7 +1140,7 @@ Item {
 
         Label {
           Layout.fillWidth: true
-          text: "维修人员不需要新建普通 GIS 项目。请打开已经准备好的供水巡检项目，打开后会直接进入地图和巡检功能。"
+          text: "第一次使用只需要选择一次供水数据。以后打开软件会直接回到地图。"
           wrapMode: Text.WordWrap
           horizontalAlignment: Text.AlignHCenter
           color: QfTheme.secondaryTextColor
@@ -1127,18 +1148,10 @@ Item {
 
         Button {
           Layout.fillWidth: true
-          text: "打开供水巡检项目"
+          text: "打开供水数据"
           onClicked: plugin.chooseWaterworksProject()
         }
 
-        Button {
-          Layout.fillWidth: true
-          text: "进入高级模式"
-          onClicked: {
-            plugin.applyWorkerMode(true)
-            waterworksDialog.close()
-          }
-        }
       }
     }
   }
