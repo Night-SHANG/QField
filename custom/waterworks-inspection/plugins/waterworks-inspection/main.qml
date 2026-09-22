@@ -43,6 +43,7 @@ Item {
   property string pendingDeleteObjectKind: ""
   property string pendingDeleteObjectName: ""
   property int pendingDeleteAttachmentCount: 0
+  property string attachmentCaptureMediaType: ""
 
   // Reliable no-token fallback map. The rectangle covers the Yulin area in
   // EPSG:3857 so a first launch never opens to an undefined/empty extent.
@@ -148,6 +149,28 @@ Item {
     return aliases[tableName] || {};
   }
 
+  function assetTypeValueMap() {
+    const layer = assetTypeLayer();
+    const mappings = [];
+    if (!layer) {
+      return {"map": mappings};
+    }
+
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, "\"active\" = 1");
+    while (iterator.hasNext()) {
+      const feature = iterator.next();
+      const code = String(feature.attribute("code") || "");
+      const label = String(feature.attribute("label") || code);
+      if (code.length > 0) {
+        const entry = {};
+        entry[label] = code;
+        mappings.push(entry);
+      }
+    }
+    iterator.close();
+    return {"map": mappings};
+  }
+
   function configureBusinessLayer(layer, tableName) {
     if (!layer) {
       return false;
@@ -196,6 +219,9 @@ Item {
     const statusMap = {"map":[{"正常":"normal"},{"需关注":"attention"},{"待维修":"repair"},{"停用":"disabled"}]};
     if (tableName === "assets_point" || tableName === "pipelines") {
       QfLayerUtils.configureField(layer, "status", "", "ValueMap", statusMap);
+      if (tableName === "assets_point") {
+        QfLayerUtils.configureField(layer, "asset_type", "设施类型 *", "ValueMap", assetTypeValueMap());
+      }
     } else if (tableName === "inspections") {
       QfLayerUtils.configureField(layer, "result", "", "ValueMap", {"map":[{"正常":"normal"},{"需关注":"attention"},{"待维修":"repair"}]});
       QfLayerUtils.configureField(layer, "position_accuracy_m", "", "", {}, "", true);
@@ -1501,6 +1527,118 @@ Item {
     overlayFeatureFormDrawer.open();
   }
 
+  function capturedAttachmentField(mediaType) {
+    switch (mediaType) {
+    case "video":
+      return "video_path";
+    case "audio":
+      return "audio_path";
+    case "document":
+      return "document_path";
+    default:
+      return "photo_path";
+    }
+  }
+
+  function capturedAttachmentFolder(mediaType) {
+    switch (mediaType) {
+    case "video":
+      return "attachments/videos/";
+    case "audio":
+      return "attachments/audio/";
+    case "document":
+      return "attachments/documents/";
+    default:
+      return "attachments/photos/";
+    }
+  }
+
+  function capturedAttachmentDefaultSuffix(mediaType) {
+    switch (mediaType) {
+    case "video":
+      return "mp4";
+    case "audio":
+      return "m4a";
+    default:
+      return "jpg";
+    }
+  }
+
+  function saveCapturedAttachment(sourcePath, mediaType) {
+    const layer = attachmentLayer();
+    const objectId = attachmentObjectId;
+    const objectKind = attachmentObjectKind;
+    if (!layer || !objectId || !sourcePath) {
+      mainWindow.displayToast("附件保存失败：缺少目标对象或文件");
+      return false;
+    }
+
+    const localSource = String(sourcePath).indexOf("file://") === 0
+      ? QfUrlUtils.toLocalFile(String(sourcePath))
+      : String(sourcePath);
+    if (!QfFileUtils.fileExists(localSource)) {
+      mainWindow.displayToast("附件保存失败：采集文件不存在");
+      return false;
+    }
+
+    const attachmentId = newObjectId();
+    if (!attachmentId) {
+      mainWindow.displayToast("附件保存失败：无法生成编号");
+      return false;
+    }
+
+    const suffix = String(QfFileUtils.fileSuffix(localSource) || capturedAttachmentDefaultSuffix(mediaType)).toLowerCase();
+    const relativePath = capturedAttachmentFolder(mediaType) + objectId + "/" + attachmentId + "." + suffix;
+    const targetPath = qgisProject.homePath + "/" + relativePath;
+    if (!QfFileUtils.copyFile(localSource, targetPath, false)) {
+      mainWindow.displayToast("附件保存失败：无法写入项目目录");
+      return false;
+    }
+
+    const feature = QfFeatureUtils.createFeature(layer);
+    feature.setAttribute("id", attachmentId);
+    setParentReference(feature, objectId, objectKind);
+    feature.setAttribute("inspection_id", null);
+    feature.setAttribute("repair_id", null);
+    feature.setAttribute("media_type", mediaType);
+    feature.setAttribute("photo_path", null);
+    feature.setAttribute("video_path", null);
+    feature.setAttribute("audio_path", null);
+    feature.setAttribute("document_path", null);
+    feature.setAttribute(capturedAttachmentField(mediaType), relativePath);
+
+    if (!QfLayerUtils.addFeature(layer, feature)) {
+      platformUtilities.rmFile(targetPath);
+      mainWindow.displayToast("附件保存失败：无法写入附件记录");
+      return false;
+    }
+
+    platformUtilities.rmFile(localSource);
+    QfLayerUtils.triggerLayerRepaint(layer);
+    loadAttachments(objectId, objectKind);
+    mainWindow.displayToast(attachmentTypeLabel(mediaType) + "已添加");
+    return true;
+  }
+
+  function startAttachmentCapture(mediaType) {
+    if (!editAllowed("添加附件")) {
+      return;
+    }
+    if (!attachmentObjectId) {
+      mainWindow.displayToast("无法确定附件所属对象");
+      return;
+    }
+
+    attachmentCaptureMediaType = mediaType;
+    if (mediaType === "audio") {
+      attachmentAudioRecorderLoader.active = true;
+    } else if (mediaType === "photo" || mediaType === "video") {
+      attachmentCameraLoader.active = true;
+    } else {
+      createAttachment(attachmentObjectId, attachmentObjectKind, "document");
+    }
+  }
+
   function createAttachment(objectId, objectKind, mediaType) {
     if (!editAllowed("添加附件")) {
       return;
@@ -1519,7 +1657,7 @@ Item {
       return;
     }
 
-    const type = mediaType || "photo";
+    const type = mediaType || "document";
     configureAttachmentCaptureMode(type);
     const feature = QfFeatureUtils.createFeature(layer);
     setParentReference(feature, objectId, objectKind);
@@ -1527,6 +1665,7 @@ Item {
 
     pendingAttachmentRefreshId = objectId;
     pendingAttachmentRefreshKind = objectKind;
+    overlayFeatureFormDrawer.featureModel.currentLayer = null;
     overlayFeatureFormDrawer.featureModel.currentLayer = layer;
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
@@ -1556,6 +1695,7 @@ Item {
     QfCamera {
       visible: false
       allowCaptureModeToggle: false
+      autoAcceptPhoto: true
       currentLayer: assetLayer()
 
       Component.onCompleted: {
@@ -1574,6 +1714,70 @@ Item {
 
       onCanceled: close()
       onClosed: assetPhotoCameraLoader.active = false
+    }
+  }
+
+  Loader {
+    id: attachmentCameraLoader
+    active: false
+    sourceComponent: attachmentCameraComponent
+  }
+
+  Component {
+    id: attachmentCameraComponent
+
+    QfCamera {
+      visible: false
+      allowCaptureModeToggle: false
+      autoAcceptPhoto: attachmentCaptureMediaType === "photo"
+      currentLayer: attachmentLayer()
+
+      Component.onCompleted: {
+        state = attachmentCaptureMediaType === "video" ? "VideoCapture" : "PhotoCapture";
+        open();
+      }
+
+      onFinished: path => {
+        if (path && path !== "") {
+          plugin.saveCapturedAttachment(path, attachmentCaptureMediaType);
+        }
+        close();
+      }
+
+      onCanceled: close()
+      onClosed: {
+        attachmentCameraLoader.active = false;
+        attachmentCaptureMediaType = "";
+      }
+    }
+  }
+
+  Loader {
+    id: attachmentAudioRecorderLoader
+    active: false
+    sourceComponent: attachmentAudioRecorderComponent
+  }
+
+  Component {
+    id: attachmentAudioRecorderComponent
+
+    QfAudioClipRecorder {
+      visible: false
+
+      Component.onCompleted: open()
+
+      onFinished: path => {
+        if (path && path !== "") {
+          plugin.saveCapturedAttachment(path, "audio");
+        }
+        close();
+      }
+
+      onCanceled: close()
+      onClosed: {
+        attachmentAudioRecorderLoader.active = false;
+        attachmentCaptureMediaType = "";
+      }
     }
   }
 
@@ -2233,19 +2437,19 @@ Item {
         Button {
           Layout.fillWidth: true
           text: "拍照"
-          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "photo")
+          onClicked: plugin.startAttachmentCapture("photo")
         }
 
         Button {
           Layout.fillWidth: true
           text: "视频"
-          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "video")
+          onClicked: plugin.startAttachmentCapture("video")
         }
 
         Button {
           Layout.fillWidth: true
           text: "录音"
-          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "audio")
+          onClicked: plugin.startAttachmentCapture("audio")
         }
 
         Button {
