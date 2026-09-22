@@ -63,18 +63,21 @@
 
 ## 4. attachments
 
-附件统一关系表，避免照片、视频、文档分别实现一套业务逻辑。
+附件统一关系表，照片、视频、音频、文档仍共用一个实现；父对象使用明确外键，便于 QGIS/QField 建立原生 1:N Relation 和附件画廊。
 
 建议字段：
 
 - id: UUID
-- owner_type: asset / inspection / repair
-- owner_id: UUID
+- asset_id: 设施 UUID，可空
+- inspection_id: 巡检 UUID，可空
+- repair_id: 维修 UUID，可空
 - media_type: photo / video / audio / document
 - file_path
 - caption
 - captured_at
 - created_at
+
+三个父级字段必须且只能填写一个。这样同一张附件表既保持统一实现，又能分别建立“设施→附件”“巡检→附件”“维修→附件”的原生关系。
 
 ## 5. repairs
 
@@ -100,4 +103,4 @@
 - 点位名称、类型、图标、颜色由数据驱动，禁止写死为固定几类设施。
 - 在线底图与管网主数据解耦。
 - 高德 GCJ-02、百度 BD-09 只能作为显示层转换来源，不能污染主数据。
-- 附件允许照片、视频、音频和文档，多附件关联同一设施/巡检记录。
+- 附件允许照片、视频、音频和文档，多附件关联同一设施/巡检/维修记录；父对象必须且只能有一个。
