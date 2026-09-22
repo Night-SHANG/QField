@@ -211,7 +211,7 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("function setParentReference(feature, objectId, objectKind)", self.text)
         self.assertIn("function createInspection(objectId, objectKind)", self.text)
         self.assertIn("function createRepair(objectId, objectKind)", self.text)
-        self.assertIn("function createAttachment(objectId, objectKind)", self.text)
+        self.assertIn("function createAttachment(objectId, objectKind, mediaType)", self.text)
         self.assertIn('feature.setAttribute("pipeline_id", objectId)', self.text)
         self.assertIn('feature.setAttribute("asset_id", objectId)', self.text)
 
@@ -238,6 +238,48 @@ class PluginContractTests(unittest.TestCase):
 
     def test_inspection_accuracy_checks_validity(self) -> None:
         self.assertIn("info.haccValid", self.text)
+
+    def test_native_processing_and_delete_are_hidden_in_specialised_ui(self) -> None:
+        self.assertIn("featureForm.allowDelete = false", self.text)
+        self.assertIn("featureForm.allowProcessing = false", self.text)
+        for object_name in (
+            "gnssCursorLockButton",
+            "gnssCanvasLockButton",
+            "addBookmarkAtCurrentLocationButton",
+            "gnssTrackingButton",
+        ):
+            self.assertIn(f'iface.findItemByObjectName("{object_name}")', self.text)
+        self.assertIn("gnssTrackingButton.visible = false", self.text)
+
+    def test_pipeline_digitizing_has_persistent_guidance_and_yields_chrome(self) -> None:
+        self.assertIn('objectName: "waterworksPipelineDigitizingHint"', self.text)
+        self.assertIn("digitizingToolbar.geometryRequested", self.text)
+        self.assertIn("至少 2 个", self.text)
+        self.assertIn("点 ✓ 完成", self.text)
+
+    def test_overlay_business_forms_bind_their_layer_before_opening(self) -> None:
+        self.assertGreaterEqual(
+            self.text.count("overlayFeatureFormDrawer.featureModel.currentLayer = layer"),
+            3,
+        )
+
+    def test_attachment_browser_surfaces_existing_media_and_capture_types(self) -> None:
+        self.assertIn('objectName: "waterworksAttachmentDrawer"', self.text)
+        self.assertIn("function loadAttachments(objectId, objectKind)", self.text)
+        self.assertIn("function attachmentUrl(relativePath)", self.text)
+        self.assertIn('text: "照片 / 附件"', self.text)
+        for media_type in ("photo", "video", "audio", "document"):
+            self.assertIn(f'"{media_type}"', self.text)
+        self.assertIn("Image {", self.text)
+        self.assertIn("Qt.openUrlExternally(plugin.attachmentUrl(relativePath))", self.text)
+
+    def test_safe_delete_uses_committed_expression_deletion(self) -> None:
+        self.assertIn("function requestDeleteBusinessObject(objectId, objectKind)", self.text)
+        self.assertIn("function confirmDeleteBusinessObject()", self.text)
+        self.assertIn("QfLayerUtils.deleteFeaturesByExpression", self.text)
+        self.assertIn("已经有巡检或维修历史", self.text)
+        self.assertIn('状态改为“停用”', self.text)
+        self.assertIn('title: "确认删除"', self.text)
 
 
 if __name__ == "__main__":
