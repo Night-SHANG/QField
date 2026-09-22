@@ -106,6 +106,22 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("yulinDefaultExtent", self.text)
         self.assertIn("tile.openstreetmap.org", self.text)
 
+    def test_asset_capture_keeps_photos_in_simplified_flow(self) -> None:
+        self.assertIn("property var pendingAssetPhotoPaths: []", self.text)
+        self.assertIn("function startAssetPhotoCapture()", self.text)
+        self.assertIn("QfCamera {", self.text)
+        self.assertIn('state = "PhotoCapture"', self.text)
+        self.assertIn('text: pendingAssetPhotoPaths.length > 0 ? "继续拍照" : "拍照"', self.text)
+        self.assertIn("function savePendingAssetPhotos(assetId)", self.text)
+        self.assertIn('"attachments/photos/" + assetId', self.text)
+        self.assertIn('attachment.setAttribute("media_type", "photo")', self.text)
+        self.assertIn('attachment.setAttribute("photo_path", relativePath)', self.text)
+
+    def test_simplified_asset_capture_assigns_stable_id_before_attachments(self) -> None:
+        self.assertIn("function newObjectId()", self.text)
+        self.assertIn('feature.setAttribute("id", assetId)', self.text)
+        self.assertIn("savePendingAssetPhotos(assetId)", self.text)
+
     def test_project_load_activates_and_centers_location(self) -> None:
         self.assertIn("function activateAndCenterLocation()", self.text)
         self.assertIn('iface.findItemByObjectName("positioningSettings")', self.text)

@@ -31,6 +31,7 @@ Item {
   property bool waterworksProjectReady: false
   property var pendingAssetGeometry
   property var pendingPipelineGeometry
+  property var pendingAssetPhotoPaths: []
 
   // Reliable no-token fallback map. The rectangle covers the Yulin area in
   // EPSG:3857 so a first launch never opens to an undefined/empty extent.
@@ -716,6 +717,86 @@ Item {
     waterworksDialog.close();
   }
 
+  function newObjectId() {
+    const value = nearbyDistanceEvaluator.evaluate("uuid('WithoutBraces')");
+    return value === null || value === undefined ? "" : String(value).replace(/[{}]/g, "");
+  }
+
+  function clearPendingAssetPhotos(deleteFiles) {
+    if (deleteFiles) {
+      for (let i = 0; i < pendingAssetPhotoPaths.length; i++) {
+        const path = String(pendingAssetPhotoPaths[i] || "");
+        if (path.length > 0 && QfFileUtils.fileExists(path)) {
+          platformUtilities.rmFile(path);
+        }
+      }
+    }
+    pendingAssetPhotoPaths = [];
+  }
+
+  function startAssetPhotoCapture() {
+    if (!pendingAssetGeometry || assetPhotoCameraLoader.active) {
+      return;
+    }
+
+    Qt.inputMethod.hide();
+    platformUtilities.createDir(qgisProject.homePath, "DCIM");
+    assetPhotoCameraLoader.active = true;
+  }
+
+  function savePendingAssetPhotos(assetId) {
+    const sourcePaths = pendingAssetPhotoPaths.slice(0);
+    if (sourcePaths.length === 0) {
+      return 0;
+    }
+
+    const layer = attachmentLayer();
+    if (!layer || !assetId) {
+      return -1;
+    }
+
+    let savedCount = 0;
+    for (let i = 0; i < sourcePaths.length; i++) {
+      const sourcePath = String(sourcePaths[i] || "");
+      if (!sourcePath || !QfFileUtils.fileExists(sourcePath)) {
+        continue;
+      }
+
+      const attachmentId = newObjectId();
+      if (!attachmentId) {
+        continue;
+      }
+
+      const suffix = QfFileUtils.fileSuffix(sourcePath) || "jpg";
+      const relativePath = "attachments/photos/" + assetId + "/" + attachmentId + "." + String(suffix).toLowerCase();
+      const targetPath = qgisProject.homePath + "/" + relativePath;
+      if (!QfFileUtils.copyFile(sourcePath, targetPath, false)) {
+        continue;
+      }
+
+      const attachment = QfFeatureUtils.createFeature(layer);
+      attachment.setAttribute("id", attachmentId);
+      attachment.setAttribute("asset_id", assetId);
+      attachment.setAttribute("pipeline_id", null);
+      attachment.setAttribute("inspection_id", null);
+      attachment.setAttribute("repair_id", null);
+      attachment.setAttribute("media_type", "photo");
+      attachment.setAttribute("photo_path", relativePath);
+      attachment.setAttribute("video_path", null);
+      attachment.setAttribute("audio_path", null);
+      attachment.setAttribute("document_path", null);
+
+      if (QfLayerUtils.addFeature(layer, attachment)) {
+        savedCount++;
+        platformUtilities.rmFile(sourcePath);
+      } else {
+        platformUtilities.rmFile(targetPath);
+      }
+    }
+
+    return savedCount;
+  }
+
   function createAssetAtCurrentPosition() {
     const layer = assetLayer();
     if (!layer) {
@@ -739,6 +820,7 @@ Item {
       mainWindow.displayToast("当前定位精度约 ±" + Math.round(Number(info.hacc)) + " 米，建议到开阔位置等待定位稳定后再放点");
     }
 
+    clearPendingAssetPhotos(true);
     pendingAssetGeometry = QfGeometryUtils.createGeometryFromWkt(
       "POINT(" + Number(info.longitude) + " " + Number(info.latitude) + ")"
     );
@@ -752,8 +834,15 @@ Item {
       return;
     }
 
+    const assetId = newObjectId();
+    if (!assetId) {
+      mainWindow.displayToast("无法生成点位编号");
+      return;
+    }
+
     const feature = QfFeatureUtils.createFeature(layer, pendingAssetGeometry);
     const typeItem = assetTypeOptions.get(assetEntryType.currentIndex);
+    feature.setAttribute("id", assetId);
     feature.setAttribute("asset_type", typeItem && typeItem.value ? String(typeItem.value) : "other");
     feature.setAttribute("name", assetEntryName.text.trim());
     feature.setAttribute("code", assetEntryCode.text.trim());
@@ -766,9 +855,21 @@ Item {
       return;
     }
 
-    assetEntryDialog.close();
+    const photoCount = pendingAssetPhotoPaths.length;
+    const savedPhotoCount = savePendingAssetPhotos(assetId);
+    clearPendingAssetPhotos(false);
     pendingAssetGeometry = null;
-    mainWindow.displayToast("点位已保存");
+    assetEntryDialog.close();
+
+    if (savedPhotoCount < 0) {
+      mainWindow.displayToast("点位已保存，但附件图层不可用，照片未写入记录");
+    } else if (savedPhotoCount !== photoCount) {
+      mainWindow.displayToast("点位已保存，" + savedPhotoCount + "/" + photoCount + " 张照片已保存");
+    } else if (photoCount > 0) {
+      mainWindow.displayToast("点位和 " + photoCount + " 张照片已保存");
+    } else {
+      mainWindow.displayToast("点位已保存");
+    }
   }
 
   function setParentReference(feature, objectId, objectKind) {
@@ -872,6 +973,39 @@ Item {
     }
   }
 
+  Loader {
+    id: assetPhotoCameraLoader
+    active: false
+    sourceComponent: assetPhotoCameraComponent
+  }
+
+  Component {
+    id: assetPhotoCameraComponent
+
+    QfCamera {
+      visible: false
+      allowCaptureModeToggle: false
+      currentLayer: assetLayer()
+
+      Component.onCompleted: {
+        state = "PhotoCapture";
+        open();
+      }
+
+      onFinished: path => {
+        if (path && path !== "") {
+          const paths = pendingAssetPhotoPaths.slice(0);
+          paths.push(path);
+          pendingAssetPhotoPaths = paths;
+        }
+        close();
+      }
+
+      onCanceled: close()
+      onClosed: assetPhotoCameraLoader.active = false
+    }
+  }
+
   QfExpressionEvaluator {
     id: nearbyDistanceEvaluator
     project: qgisProject
@@ -908,7 +1042,7 @@ Item {
     modal: true
     standardButtons: Dialog.NoButton
     width: Math.min(mainWindow.width - 32, 520)
-    height: Math.min(mainWindow.height - 48, 620)
+    height: Math.min(mainWindow.height - 48, 680)
     x: (mainWindow.width - width) / 2
     y: (mainWindow.height - height) / 2
 
@@ -920,6 +1054,13 @@ Item {
       assetEntryArea.clear();
       assetEntryAddress.clear();
       assetEntryNote.clear();
+    }
+
+    onClosed: {
+      if (pendingAssetGeometry || pendingAssetPhotoPaths.length > 0) {
+        clearPendingAssetPhotos(true);
+        pendingAssetGeometry = null;
+      }
     }
 
     ColumnLayout {
@@ -957,6 +1098,27 @@ Item {
         placeholderText: "位置描述，例如：村口向东 20 米"
       }
 
+      RowLayout {
+        Layout.fillWidth: true
+
+        Button {
+          Layout.fillWidth: true
+          text: pendingAssetPhotoPaths.length > 0 ? "继续拍照" : "拍照"
+          onClicked: plugin.startAssetPhotoCapture()
+        }
+
+        Label {
+          text: pendingAssetPhotoPaths.length > 0 ? "已拍 " + pendingAssetPhotoPaths.length + " 张" : "可选"
+          color: QfTheme.secondaryTextColor
+        }
+
+        Button {
+          visible: pendingAssetPhotoPaths.length > 0
+          text: "清空"
+          onClicked: plugin.clearPendingAssetPhotos(true)
+        }
+      }
+
       TextArea {
         id: assetEntryNote
         Layout.fillWidth: true
@@ -971,10 +1133,7 @@ Item {
         Button {
           Layout.fillWidth: true
           text: "取消"
-          onClicked: {
-            pendingAssetGeometry = null;
-            assetEntryDialog.close();
-          }
+          onClicked: assetEntryDialog.close()
         }
 
         Button {
