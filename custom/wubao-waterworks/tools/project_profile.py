@@ -170,7 +170,14 @@ RELATIONS = [
     ("asset_repairs", "维修历史", "repairs", "asset_id", "assets_point", "id"),
     ("inspection_repairs", "关联维修", "repairs", "inspection_id", "inspections", "id"),
     ("asset_attachments", "设施附件", "attachments", "asset_id", "assets_point", "id"),
-    ("inspection_attachments", "巡检附件", "attachments", "inspection_id", "inspections", "id"),
+    (
+        "inspection_attachments",
+        "巡检附件",
+        "attachments",
+        "inspection_id",
+        "inspections",
+        "id",
+    ),
     ("repair_attachments", "维修附件", "attachments", "repair_id", "repairs", "id"),
 ]
 
@@ -186,7 +193,12 @@ HIDDEN_FIELDS = {
     "pipelines": {"fid", "id", "created_at", "updated_at"},
     "inspections": {"fid", "id", "asset_id", "created_at"},
     "attachments": {
-        "fid", "id", "asset_id", "inspection_id", "repair_id", "created_at"
+        "fid",
+        "id",
+        "asset_id",
+        "inspection_id",
+        "repair_id",
+        "created_at",
     },
     "repairs": {"fid", "id", "asset_id", "inspection_id"},
 }
@@ -198,21 +210,47 @@ READ_ONLY_FIELDS = {
 
 FORM_FIELDS = {
     "assets_point": [
-        "code", "name", "asset_type", "status", "pipeline_id", "area_name",
-        "address_hint", "install_date", "last_inspection_at", "note",
+        "code",
+        "name",
+        "asset_type",
+        "status",
+        "pipeline_id",
+        "area_name",
+        "address_hint",
+        "install_date",
+        "last_inspection_at",
+        "note",
     ],
     "pipelines": [
-        "code", "name", "pipe_type", "material", "diameter_mm",
-        "pressure_zone", "status", "install_date", "note",
+        "code",
+        "name",
+        "pipe_type",
+        "material",
+        "diameter_mm",
+        "pressure_zone",
+        "status",
+        "install_date",
+        "note",
     ],
     "inspections": [
-        "inspected_at", "inspector", "result", "pressure_value", "issue",
-        "action_taken", "note", "position_accuracy_m",
+        "inspected_at",
+        "inspector",
+        "result",
+        "pressure_value",
+        "issue",
+        "action_taken",
+        "note",
+        "position_accuracy_m",
     ],
     "attachments": ["media_type", "caption", "captured_at"],
     "repairs": [
-        "reported_at", "repaired_at", "repair_type", "description", "result",
-        "operator", "note",
+        "reported_at",
+        "repaired_at",
+        "repair_type",
+        "description",
+        "result",
+        "operator",
+        "note",
     ],
 }
 
@@ -252,34 +290,59 @@ ATTACHMENT_MEDIA_FIELDS = {
 ATTACHMENT_NAMING = {
     "photo_path": (
         "'attachments/photos/' || "
-        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        'coalesce("asset_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '.{extension}'"
     ),
     "video_path": (
         "'attachments/videos/' || "
-        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        'coalesce("asset_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '.{extension}'"
     ),
     "audio_path": (
         "'attachments/audio/' || "
-        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        'coalesce("asset_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '.{extension}'"
     ),
     "document_path": (
         "'attachments/documents/' || "
-        "coalesce(\"asset_id\", \"inspection_id\", \"repair_id\") || "
+        'coalesce("asset_id", "inspection_id", "repair_id") || '
         "'/' || uuid('WithoutBraces') || '_{filename}'"
     ),
 }
 
 
 ASSET_SYMBOLS = {
-    "valve_well": {"label": "阀门井", "shape": "circle", "color": "#1976D2", "size": "4.6"},
+    "valve_well": {
+        "label": "阀门井",
+        "shape": "circle",
+        "color": "#1976D2",
+        "size": "4.6",
+    },
     "valve": {"label": "阀门", "shape": "diamond", "color": "#1565C0", "size": "4.4"},
-    "pressure_gauge": {"label": "压力表", "shape": "triangle", "color": "#7B1FA2", "size": "4.6"},
-    "hydrant": {"label": "消防栓", "shape": "square", "color": "#D32F2F", "size": "4.6"},
-    "air_valve": {"label": "排气阀", "shape": "triangle", "color": "#00897B", "size": "4.4"},
-    "drain_valve": {"label": "排泥阀", "shape": "diamond", "color": "#6D4C41", "size": "4.4"},
+    "pressure_gauge": {
+        "label": "压力表",
+        "shape": "triangle",
+        "color": "#7B1FA2",
+        "size": "4.6",
+    },
+    "hydrant": {
+        "label": "消防栓",
+        "shape": "square",
+        "color": "#D32F2F",
+        "size": "4.6",
+    },
+    "air_valve": {
+        "label": "排气阀",
+        "shape": "triangle",
+        "color": "#00897B",
+        "size": "4.4",
+    },
+    "drain_valve": {
+        "label": "排泥阀",
+        "shape": "diamond",
+        "color": "#6D4C41",
+        "size": "4.4",
+    },
     "meter": {"label": "水表", "shape": "circle", "color": "#3949AB", "size": "4.2"},
     "other": {"label": "其他", "shape": "circle", "color": "#607D8B", "size": "4.0"},
 }
