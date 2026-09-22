@@ -702,6 +702,33 @@ bool QfFileUtils::writeFileContent( const QString &filePath, const QByteArray &c
   }
 }
 
+bool QfFileUtils::copyFile( const QString &sourcePath, const QString &destinationPath, bool overwrite )
+{
+  const QFileInfo sourceInfo( sourcePath );
+  if ( !sourceInfo.exists() || !sourceInfo.isFile() )
+  {
+    return false;
+  }
+
+  const QFileInfo destinationInfo( destinationPath );
+  QDir destinationDirectory = destinationInfo.dir();
+  if ( !destinationDirectory.exists() && !destinationDirectory.mkpath( QStringLiteral( "." ) ) )
+  {
+    return false;
+  }
+
+  if ( QFileInfo::exists( destinationPath ) )
+  {
+    if ( !overwrite || !QFile::remove( destinationPath ) )
+    {
+      return false;
+    }
+  }
+
+  return QFile::copy( sourcePath, destinationPath );
+}
+
+
 QVariantMap QfFileUtils::getFileInfo( const QString &filePath, bool fetchContent )
 {
   QVariantMap info;
