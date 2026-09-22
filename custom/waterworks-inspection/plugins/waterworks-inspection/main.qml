@@ -19,6 +19,7 @@ Item {
   property var featureForm: iface.findItemByObjectName("featureForm")
   property var navigation: iface.findItemByObjectName("navigation")
   property var projectFolderButton: iface.findItemByObjectName("projectFolderButton")
+  property var digitizingToolbar: iface.findItemByObjectName("digitizingToolbar")
 
   readonly property var assetTypeLayerNames: ["设施类型配置", "asset_types"]
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
@@ -34,6 +35,14 @@ Item {
   property var pendingAssetGeometry
   property var pendingPipelineGeometry
   property var pendingAssetPhotoPaths: []
+  property string attachmentObjectId: ""
+  property string attachmentObjectKind: ""
+  property string pendingAttachmentRefreshId: ""
+  property string pendingAttachmentRefreshKind: ""
+  property string pendingDeleteObjectId: ""
+  property string pendingDeleteObjectKind: ""
+  property string pendingDeleteObjectName: ""
+  property int pendingDeleteAttachmentCount: 0
 
   // Reliable no-token fallback map. The rectangle covers the Yulin area in
   // EPSG:3857 so a first launch never opens to an undefined/empty extent.
@@ -262,6 +271,10 @@ Item {
     const welcomeCloud = iface.findItemByObjectName("welcomeActionCloud");
     const welcomeNewProject = iface.findItemByObjectName("welcomeActionNewProject");
     const welcomeLocalProjects = iface.findItemByObjectName("welcomeActionLocalProjects");
+    const gnssCursorLockButton = iface.findItemByObjectName("gnssCursorLockButton");
+    const gnssCanvasLockButton = iface.findItemByObjectName("gnssCanvasLockButton");
+    const addBookmarkAtCurrentLocationButton = iface.findItemByObjectName("addBookmarkAtCurrentLocationButton");
+    const gnssTrackingButton = iface.findItemByObjectName("gnssTrackingButton");
 
     if (mainMenuBar) {
       mainMenuBar.visible = false;
@@ -297,7 +310,20 @@ Item {
     }
     if (featureForm) {
       featureForm.allowEdit = workerAppSettings.editEnabled;
-      featureForm.allowDelete = workerAppSettings.editEnabled;
+      featureForm.allowDelete = false;
+      featureForm.allowProcessing = false;
+    }
+    if (gnssCursorLockButton) {
+      gnssCursorLockButton.visible = false;
+    }
+    if (gnssCanvasLockButton) {
+      gnssCanvasLockButton.visible = false;
+    }
+    if (addBookmarkAtCurrentLocationButton) {
+      addBookmarkAtCurrentLocationButton.visible = false;
+    }
+    if (gnssTrackingButton) {
+      gnssTrackingButton.visible = false;
     }
     if (welcomeCloud) {
       welcomeCloud.visible = false;
@@ -347,7 +373,8 @@ Item {
     workerAppSettings.editEnabled = enabled;
     if (featureForm) {
       featureForm.allowEdit = enabled;
-      featureForm.allowDelete = enabled;
+      featureForm.allowDelete = false;
+      featureForm.allowProcessing = false;
       if (!enabled && featureForm.state === "FeatureFormEdit") {
         featureForm.state = "FeatureForm";
       }
@@ -364,6 +391,9 @@ Item {
     }
     if (moreDrawer && moreDrawer.opened) {
       moreDrawer.close();
+    }
+    if (attachmentDrawer && attachmentDrawer.opened) {
+      attachmentDrawer.close();
     }
   }
 
