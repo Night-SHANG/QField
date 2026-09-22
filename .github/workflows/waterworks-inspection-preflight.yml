@@ -147,6 +147,21 @@ jobs:
             failures=$((failures + 1))
           }
 
+          grep -q 'objectName: "waterworksBottomActionBar"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Map-first field action bar is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'property bool editEnabled: false' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Persistent view/edit lock is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'Q_INVOKABLE static int selectFeaturesByExpression' src/core/utils/qflayerutils.h || {
+            echo "::error::Map query highlighting hook is missing"
+            failures=$((failures + 1))
+          }
+
           grep -q 'cmakeVersion: 3.31.6'             .github/workflows/waterworks-inspection-android.yml || {
               echo "::error::Waterworks Android workflow must pin CMake 3.31.6"
               failures=$((failures + 1))
