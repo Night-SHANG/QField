@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the QGIS/QField project for Wubao waterworks.
+"""Generate the QGIS/QField project for waterworks inspection.
 
 Run this with a Python environment that can import qgis.core, for example the
 Python shipped with QGIS. The GeoPackage itself is generated independently by
@@ -128,13 +128,14 @@ def configure_project_view_and_tree(
     QgsRectangle = api["QgsRectangle"]
     QgsReferencedRectangle = api["QgsReferencedRectangle"]
 
-    xmin, ymin, xmax, ymax = profile.DEFAULT_VIEW_EXTENT
-    extent = QgsReferencedRectangle(
-        QgsRectangle(xmin, ymin, xmax, ymax),
-        QgsCoordinateReferenceSystem(profile.PROJECT_CRS),
-    )
-    project.viewSettings().setDefaultViewExtent(extent)
-    project.viewSettings().setPresetFullExtent(extent)
+    if profile.DEFAULT_VIEW_EXTENT is not None:
+        xmin, ymin, xmax, ymax = profile.DEFAULT_VIEW_EXTENT
+        extent = QgsReferencedRectangle(
+            QgsRectangle(xmin, ymin, xmax, ymax),
+            QgsCoordinateReferenceSystem(profile.PROJECT_CRS),
+        )
+        project.viewSettings().setDefaultViewExtent(extent)
+        project.viewSettings().setPresetFullExtent(extent)
 
     root = project.layerTreeRoot()
     root.removeAllChildren()
@@ -148,6 +149,10 @@ def configure_project_view_and_tree(
     records_group.addLayer(layers["repairs"])
     records_group.addLayer(layers["attachments"])
     records_group.setItemVisibilityChecked(False)
+
+    config_group = root.addGroup("配置")
+    config_group.addLayer(layers["asset_types"])
+    config_group.setItemVisibilityChecked(False)
 
     imagery_basemaps = imagery_basemaps or []
     offline_basemaps = offline_basemaps or []
@@ -276,7 +281,40 @@ def configure_map_style(api, layers):
         "ELSE '#2E7D32' END"
     )
 
-    for value, config in profile.ASSET_SYMBOLS.items():
+    type_features = sorted(
+        layers["asset_types"].getFeatures(),
+        key=lambda feature: (
+            int(feature["sort_order"]),
+            str(feature["label"]),
+        ),
+    )
+    for feature in type_features:
+        if not bool(feature["active"]):
+            continue
+
+        value = str(feature["code"])
+        label = str(feature["label"])
+        shape = str(feature["symbol_shape"])
+        color = str(feature["symbol_color"])
+        size = str(feature["symbol_size"])
+
+        symbol = QgsMarkerSymbol.createSimple(
+            {
+                "name": shape,
+                "color": color,
+                "size": size,
+                "outline_color": profile.STATUS_STROKE_COLORS["normal"],
+                "outline_width": "0.8",
+            }
+        )
+        symbol.symbolLayer(0).setDataDefinedProperty(
+            QgsSymbolLayer.Property.PropertyStrokeColor,
+            QgsProperty.fromExpression(status_expression),
+        )
+        categories.append(QgsRendererCategory(value, symbol, label))
+
+    if not categories:
+        config = profile.DEFAULT_ASSET_SYMBOL
         symbol = QgsMarkerSymbol.createSimple(
             {
                 "name": config["shape"],
@@ -286,11 +324,7 @@ def configure_map_style(api, layers):
                 "outline_width": "0.8",
             }
         )
-        symbol.symbolLayer(0).setDataDefinedProperty(
-            QgsSymbolLayer.Property.PropertyStrokeColor,
-            QgsProperty.fromExpression(status_expression),
-        )
-        categories.append(QgsRendererCategory(value, symbol, config["label"]))
+        categories.append(QgsRendererCategory("other", symbol, config["label"]))
 
     asset_layer.setRenderer(QgsCategorizedSymbolRenderer("asset_type", categories))
 
@@ -372,6 +406,21 @@ def configure_fields(api, layers):
         layers[table].setEditorWidgetSetup(
             field_index(layers[table], field_name),
             QgsEditorWidgetSetup("ValueMap", {"map": mapping}),
+        )
+
+    for (table, field_name), config in profile.VALUE_RELATIONS.items():
+        reference_layer = layers[config["layer"]]
+        value_relation_config = {
+            "Layer": reference_layer.id(),
+            "Key": config["key"],
+            "Value": config["value"],
+            "AllowNull": config["allow_null"],
+            "OrderByValue": config["order_by_value"],
+            "FilterExpression": config["filter_expression"],
+        }
+        layers[table].setEditorWidgetSetup(
+            field_index(layers[table], field_name),
+            QgsEditorWidgetSetup("ValueRelation", value_relation_config),
         )
 
     for (table, field_name), expression in profile.DEFAULTS.items():
@@ -576,14 +625,14 @@ def build_project(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate the Wubao waterworks QGIS/QField project"
+        description="Generate the waterworks inspection QGIS/QField project"
     )
     parser.add_argument("geopackage", type=Path)
     parser.add_argument(
         "output",
         nargs="?",
         type=Path,
-        default=Path("wubao-waterworks.qgs"),
+        default=Path("waterworks-inspection.qgs"),
     )
     parser.add_argument(
         "--offline-basemap",
