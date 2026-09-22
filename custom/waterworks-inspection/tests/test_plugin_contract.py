@@ -87,15 +87,30 @@ class PluginContractTests(unittest.TestCase):
 
     def test_pipeline_capture_reuses_qfield_digitizing(self) -> None:
         self.assertIn("function startPipelineCapture()", self.text)
-        self.assertIn('iface.findItemByObjectName("dashBoard")', self.text)
-        self.assertIn("dashBoard.activeLayer = layer", self.text)
-        self.assertIn('mainWindow.changeMode("digitize")', self.text)
+        self.assertIn('iface.findItemByObjectName("digitizingToolbar")', self.text)
+        self.assertIn("digitizingToolbar.geometryRequestedLayer = layer", self.text)
+        self.assertIn("digitizingToolbar.geometryRequestedItem = pipelineGeometryReceiver", self.text)
+        self.assertIn("digitizingToolbar.geometryRequested = true", self.text)
+        self.assertIn("geometry.asQgsGeometry()", self.text)
         self.assertIn('text: "新建管线"', self.text)
 
     def test_search_controls_are_collapsed_by_default(self) -> None:
         self.assertIn("property bool searchPanelVisible: false", self.text)
         self.assertIn('text: searchPanelVisible ? "收起查找" : "查找"', self.text)
         self.assertIn("visible: searchPanelVisible", self.text)
+
+    def test_first_launch_has_visible_yulin_fallback_map(self) -> None:
+        self.assertIn('"basemap": "custom"', self.text)
+        self.assertIn('"basemap_custom_provider": "wms"', self.text)
+        self.assertIn("fallbackBasemapSource", self.text)
+        self.assertIn("yulinDefaultExtent", self.text)
+        self.assertIn("tile.openstreetmap.org", self.text)
+
+    def test_project_load_activates_and_centers_location(self) -> None:
+        self.assertIn("function activateAndCenterLocation()", self.text)
+        self.assertIn('iface.findItemByObjectName("positioningSettings")', self.text)
+        self.assertIn("positioningSettings.positioningActivated = true", self.text)
+        self.assertIn("gnssButton.clicked()", self.text)
 
     def test_worker_mode_reuses_native_gnss_button(self) -> None:
         self.assertIn('iface.findItemByObjectName("gnssButton")', self.text)
@@ -142,7 +157,7 @@ class PluginContractTests(unittest.TestCase):
     def test_field_capture_surfaces_accuracy_warning(self) -> None:
         self.assertIn("accuracyWarningMeters: 15", self.text)
         self.assertIn("精度 ±", self.text)
-        self.assertIn("建议到开阔位置等待定位稳定后再采点", self.text)
+        self.assertIn("建议到开阔位置等待定位稳定后再放点", self.text)
 
     def test_inspection_accuracy_checks_validity(self) -> None:
         self.assertIn("info.haccValid", self.text)
