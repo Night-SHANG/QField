@@ -227,7 +227,8 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('"assetDistance":', self.text)
         self.assertIn("required property string objectKind", self.text)
         self.assertIn("required property int assetDistance", self.text)
-        self.assertIn('"value":"pipeline"', self.text)
+        self.assertIn('plugin.queryObjectKind = "pipeline"', self.text)
+        self.assertIn('plugin.loadNearbyKind("pipeline")', self.text)
         self.assertIn('visible: objectKind === "asset"', self.text)
 
     def test_field_capture_surfaces_accuracy_warning(self) -> None:
