@@ -91,6 +91,9 @@ class QFIELD_CORE_EXPORT QfGeometryUtils : public QObject
     //! Returns the distance between a pair of \a start and \a end points.
     static Q_INVOKABLE double distanceBetweenPoints( const QgsPoint &start, const QgsPoint &end );
 
+    //! Returns the shortest planar distance between a geometry and a point.
+    static Q_INVOKABLE double distanceBetweenGeometryAndPoint( const QgsGeometry &geometry, const QgsPoint &point );
+
     //! Returns a reprojected \a point from the stated \a crs to WGS84.
     static Q_INVOKABLE QgsPoint reprojectPointToWgs84( const QgsPoint &point, const QgsCoordinateReferenceSystem &crs );
 
