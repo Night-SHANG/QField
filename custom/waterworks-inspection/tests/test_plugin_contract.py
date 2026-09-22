@@ -144,6 +144,8 @@ class PluginContractTests(unittest.TestCase):
 
     def test_runtime_project_layers_are_field_friendly(self) -> None:
         self.assertIn("function configureBusinessLayer(layer, tableName)", self.text)
+        self.assertIn("function assetTypeValueMap()", self.text)
+        self.assertIn('"asset_type", "设施类型 *", "ValueMap", assetTypeValueMap()', self.text)
         self.assertIn("QfLayerUtils.configureField", self.text)
         self.assertIn("QfLayerUtils.setDefaultRenderer(layer, qgisProject)", self.text)
         self.assertIn("QfLayerUtils.setDefaultLabeling(layer, qgisProject)", self.text)
@@ -284,6 +286,20 @@ class PluginContractTests(unittest.TestCase):
             self.assertIn(f'"{media_type}"', self.text)
         self.assertIn("Image {", self.text)
         self.assertIn("Qt.openUrlExternally(plugin.attachmentUrl(relativePath))", self.text)
+
+    def test_media_capture_bypasses_generic_feature_form(self) -> None:
+        self.assertIn("function startAttachmentCapture(mediaType)", self.text)
+        self.assertIn("function saveCapturedAttachment(sourcePath, mediaType)", self.text)
+        self.assertIn('id: attachmentCameraLoader', self.text)
+        self.assertIn('id: attachmentAudioRecorderLoader', self.text)
+        self.assertIn('plugin.startAttachmentCapture("photo")', self.text)
+        self.assertIn('plugin.startAttachmentCapture("video")', self.text)
+        self.assertIn('plugin.startAttachmentCapture("audio")', self.text)
+        self.assertIn('feature.setAttribute("media_type", mediaType)', self.text)
+        self.assertIn('feature.setAttribute(capturedAttachmentField(mediaType), relativePath)', self.text)
+
+    def test_specialised_photo_capture_auto_accepts_after_file_save(self) -> None:
+        self.assertIn("autoAcceptPhoto: true", self.text)
 
     def test_safe_delete_uses_committed_expression_deletion(self) -> None:
         self.assertIn("function requestDeleteBusinessObject(objectId, objectKind)", self.text)
