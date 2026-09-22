@@ -44,6 +44,7 @@ Android CI 使用仓库中的 `.github/workflows/waterworks-inspection-android.y
 6. 巡检自动关联点位或管线，并在 GNSS 精度有效时记录定位精度。
 7. 点位和管线详情均通过原生 Relation 查看巡检、维修和附件历史。
 8. 设施类型由 GeoPackage 的 asset_types 配置表驱动，新增类型不需要修改插件代码。
+9. “备份 / 导出项目”直接进入 QField 原生 Project Folder，复用其“Compress project and send to...”和项目文件夹导出能力，不另造 ZIP/同步实现。
 
 ## 生成项目
 
@@ -85,3 +86,9 @@ python custom/waterworks-inspection/tools/build_project_bundle.py \
 - QField 原生 Android / Linux / Windows / macOS / iOS / CodeQL 等完整矩阵：仅在阶段性 PR 或合并前运行，不把长期开发 PR 保持为开启状态。
 
 这样普通功能开发不会重复消耗完整编译时间，同时仍保留阶段性全量回归能力。
+
+## 数据备份与安全
+
+供水巡检项目由 QGIS/QField 项目文件、GeoPackage、附件目录和可选离线底图共同组成。应用内“备份 / 导出项目”复用 QField 原生项目文件夹导出链路，整目录导出或压缩分享时可以把业务数据和附件一起带走。
+
+普通 ZIP 只解决备份与迁移，不提供加密。生产环境中的管网坐标、巡检记录和附件应保存到受控设备、私有存储或受控同步服务中；后续数据加密单独实现，不把“压缩”当成“加密”。
