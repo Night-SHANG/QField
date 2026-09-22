@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 PLUGIN = (
-    Path(__file__).resolve().parents[1] / "plugins" / "wubao-waterworks" / "main.qml"
+    Path(__file__).resolve().parents[1] / "plugins" / "waterworks-inspection" / "main.qml"
 )
 
 

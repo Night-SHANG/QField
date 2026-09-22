@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: wubao-waterworks-${{ github.ref }}
+  group: waterworks-inspection-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -29,11 +29,11 @@ jobs:
           failures=0
 
           for path in \
-            custom/wubao-waterworks/README.md \
-            custom/wubao-waterworks/theme.json \
-            custom/wubao-waterworks/plugins/wubao-waterworks/main.qml \
-            custom/wubao-waterworks/plugins/wubao-waterworks/metadata.txt \
-            custom/wubao-waterworks/schema/README.md
+            custom/waterworks-inspection/README.md \
+            custom/waterworks-inspection/theme.json \
+            custom/waterworks-inspection/plugins/waterworks-inspection/main.qml \
+            custom/waterworks-inspection/plugins/waterworks-inspection/metadata.txt \
+            custom/waterworks-inspection/schema/README.md
           do
             if [[ ! -f "${path}" ]]; then
               echo "::error::Missing required file: ${path}"
@@ -41,11 +41,11 @@ jobs:
             fi
           done
 
-          python3 -m json.tool custom/wubao-waterworks/theme.json >/dev/null || failures=$((failures + 1))
+          python3 -m json.tool custom/waterworks-inspection/theme.json >/dev/null || failures=$((failures + 1))
 
-          python3 -m unittest discover -s custom/wubao-waterworks/tests -p 'test_*.py' || failures=$((failures + 1))
+          python3 -m unittest discover -s custom/waterworks-inspection/tests -p 'test_*.py' || failures=$((failures + 1))
 
-          grep -q 'objectName: "waterworksInspectionPlugin"' custom/wubao-waterworks/plugins/wubao-waterworks/main.qml || {
+          grep -q 'objectName: "waterworksInspectionPlugin"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
             echo "::error::Waterworks plugin root object is missing"
             failures=$((failures + 1))
           }
@@ -160,8 +160,8 @@ jobs:
                 -D APP_PACKAGE_NAME="${APP_PACKAGE_NAME}" \
                 -D APP_ICON="${APP_ICON}" \
                 -D APP_NAME="${APP_NAME}" \
-                -D APP_THEME_PATH="${{ github.workspace }}/custom/wubao-waterworks/theme.json" \
-                -D APP_BUNDLED_PLUGINS="${{ github.workspace }}/custom/wubao-waterworks/plugins" \
+                -D APP_THEME_PATH="${{ github.workspace }}/custom/waterworks-inspection/theme.json" \
+                -D APP_BUNDLED_PLUGINS="${{ github.workspace }}/custom/waterworks-inspection/plugins" \
                 -D NUGET_USERNAME=opengisch \
                 -D NUGET_TOKEN="${{ secrets.GITHUB_TOKEN }}"
 

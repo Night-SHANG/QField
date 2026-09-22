@@ -18,10 +18,10 @@
 
 - APP_NAME=供水巡检
 - APP_PACKAGE_NAME=waterworks_inspection
-- APP_THEME_PATH=custom/wubao-waterworks/theme.json
-- APP_BUNDLED_PLUGINS=custom/wubao-waterworks/plugins
+- APP_THEME_PATH=custom/waterworks-inspection/theme.json
+- APP_BUNDLED_PLUGINS=custom/waterworks-inspection/plugins
 
-Android CI 使用仓库中的 `.github/workflows/wubao-android.yml`。
+Android CI 使用仓库中的 `.github/workflows/waterworks-inspection-android.yml`。
 
 ## 第一阶段
 
@@ -49,21 +49,21 @@ Android CI 使用仓库中的 `.github/workflows/wubao-android.yml`。
 数据文件可单独生成：
 
 ```bash
-python custom/wubao-waterworks/tools/create_geopackage.py ./waterworks-inspection.gpkg
+python custom/waterworks-inspection/tools/create_geopackage.py ./waterworks-inspection.gpkg
 ```
 
 完整项目包需要在能够导入 PyQGIS 的 QGIS Python 环境运行：
 
 ```bash
 export TDT_SHAANXI_TOKEN='<你的授权 Token>'
-python custom/wubao-waterworks/tools/build_project_bundle.py ./WaterworksInspection
+python custom/waterworks-inspection/tools/build_project_bundle.py ./WaterworksInspection
 ```
 
 也可以追加一个或多个离线底图：
 
 ```bash
-python custom/wubao-waterworks/tools/build_project_bundle.py \
-  ./WubaoWaterworks \
+python custom/waterworks-inspection/tools/build_project_bundle.py \
+  ./WaterworksInspection \
   --offline-basemap ./site.mbtiles \
   --offline-basemap ./local-imagery.tif
 ```
@@ -79,7 +79,7 @@ python custom/wubao-waterworks/tools/build_project_bundle.py \
 
 为避免每次业务提交都触发 QField 全平台构建，开发阶段采用两级检查：
 
-- 日常提交到 `feature/wubao-waterworks`：只运行轻量 `供水巡检 Preflight`，检查 Python 语法、业务测试、主题 JSON 和专用层结构。
+- 日常提交到 `feature/waterworks-inspection`：只运行轻量 `供水巡检 Preflight`，检查 Python 语法、业务测试、主题 JSON 和专用层结构。
 - `供水巡检 Android` 完整 APK：仅通过手动 `workflow_dispatch` 触发，用于阶段性真机包。
 - QField 原生 Android / Linux / Windows / macOS / iOS / CodeQL 等完整矩阵：仅在阶段性 PR 或合并前运行，不把长期开发 PR 保持为开启状态。
 
