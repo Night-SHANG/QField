@@ -52,7 +52,8 @@ class PluginContractTests(unittest.TestCase):
 
     def test_problem_filter_covers_attention_and_repair(self) -> None:
         self.assertIn('value: "problem"', self.text)
-        self.assertIn('\"status\" IN (\'attention\', \'repair\')', self.text)
+        self.assertIn('statusValue === "problem"', self.text)
+        self.assertIn("'attention', 'repair'", self.text)
 
     def test_repair_workflow_reuses_qfield_add_form(self) -> None:
         self.assertIn('readonly property var repairLayerNames', self.text)
