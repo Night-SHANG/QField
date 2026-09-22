@@ -42,6 +42,7 @@ Item {
     id: workerAppSettings
     category: "QField"
     property bool loadProjectOnLaunch: true
+    property bool showMyLocationMarker: true
   }
   property int nearbyRadiusMeters: 500
   property real accuracyWarningMeters: 15
@@ -106,20 +107,118 @@ Item {
     iface.loadFile(projectFile, "供水巡检");
   }
 
-  function addBusinessLayer(databasePath, tableName, displayName) {
-    if (qgisProject.mapLayersByName(displayName).length > 0 || qgisProject.mapLayersByName(tableName).length > 0) {
-      return true;
-    }
+  function businessFieldAliases(tableName) {
+    const aliases = {
+      "asset_types": {"code":"类型代码","label":"类型名称","symbol_shape":"符号形状","symbol_color":"符号颜色","symbol_size":"符号大小","sort_order":"排序","active":"启用"},
+      "assets_point": {"code":"设施编号","name":"点位名称","asset_type":"设施类型","status":"状态","pipeline_id":"所属管线","area_name":"所属片区","address_hint":"位置描述","install_date":"安装日期","last_inspection_at":"最近巡检","note":"备注","created_at":"创建时间","updated_at":"更新时间"},
+      "pipelines": {"code":"管线编号","name":"管线名称","pipe_type":"管线类型","material":"材质","diameter_mm":"管径（mm）","pressure_zone":"压力分区","status":"状态","install_date":"安装日期","last_inspection_at":"最近巡检","note":"备注","created_at":"创建时间","updated_at":"更新时间"},
+      "inspections": {"asset_id":"所属设施","pipeline_id":"所属管线","inspected_at":"巡检时间","inspector":"巡检人员","result":"巡检结果","pressure_value":"压力值","issue":"发现问题","action_taken":"现场处理","note":"备注","position_accuracy_m":"定位精度（m）","created_at":"创建时间"},
+      "repairs": {"asset_id":"所属设施","pipeline_id":"所属管线","inspection_id":"来源巡检","reported_at":"报修时间","repaired_at":"完成时间","repair_type":"维修类型","description":"维修内容","result":"处理结果","operator":"维修人员","note":"备注"},
+      "attachments": {"asset_id":"所属设施","pipeline_id":"所属管线","inspection_id":"所属巡检","repair_id":"所属维修","media_type":"附件类型","photo_path":"照片","video_path":"视频","audio_path":"录音","document_path":"文档","caption":"说明","captured_at":"采集时间","created_at":"创建时间"}
+    };
+    return aliases[tableName] || {};
+  }
 
-    const layer = QfLayerUtils.loadVectorLayer(
-      databasePath + "|layername=" + tableName,
-      displayName,
-      "ogr"
-    );
-    if (!layer || !layer.isValid) {
+  function configureBusinessLayer(layer, tableName) {
+    if (!layer) {
       return false;
     }
-    return QfProjectUtils.addMapLayer(qgisProject, layer);
+
+    const displayExpressions = {
+      "asset_types": "\"label\"",
+      "assets_point": "coalesce(\"name\", '未命名点位') || CASE WHEN coalesce(\"code\", '') <> '' THEN ' [' || \"code\" || ']' ELSE '' END",
+      "pipelines": "coalesce(\"name\", '未命名管线') || CASE WHEN coalesce(\"code\", '') <> '' THEN ' [' || \"code\" || ']' ELSE '' END",
+      "inspections": "coalesce(\"inspector\", '未填写人员') || ' · ' || coalesce(to_string(\"inspected_at\"), '未填写时间')",
+      "repairs": "coalesce(\"repair_type\", '维修') || ' · ' || coalesce(to_string(\"reported_at\"), '未填写时间')",
+      "attachments": "coalesce(\"caption\", \"photo_path\", \"video_path\", \"audio_path\", \"document_path\", '附件')"
+    };
+    QfLayerUtils.setLayerDisplayExpression(layer, displayExpressions[tableName] || "");
+
+    const aliases = businessFieldAliases(tableName);
+    for (const fieldName in aliases) {
+      QfLayerUtils.configureField(layer, fieldName, aliases[fieldName]);
+    }
+
+    const hiddenFields = {
+      "asset_types": ["fid"],
+      "assets_point": ["fid", "id", "created_at", "updated_at"],
+      "pipelines": ["fid", "id", "created_at", "updated_at"],
+      "inspections": ["fid", "id", "asset_id", "pipeline_id", "created_at"],
+      "repairs": ["fid", "id", "asset_id", "pipeline_id", "inspection_id"],
+      "attachments": ["fid", "id", "asset_id", "pipeline_id", "inspection_id", "repair_id", "created_at"]
+    };
+    const hidden = hiddenFields[tableName] || [];
+    for (let i = 0; i < hidden.length; i++) {
+      QfLayerUtils.configureField(layer, hidden[i], "", "Hidden", {});
+    }
+
+    const defaults = {
+      "assets_point": {"id":"uuid('WithoutBraces')","created_at":"now()"},
+      "pipelines": {"id":"uuid('WithoutBraces')","created_at":"now()"},
+      "inspections": {"id":"uuid('WithoutBraces')","inspected_at":"now()","created_at":"now()"},
+      "repairs": {"id":"uuid('WithoutBraces')","reported_at":"now()"},
+      "attachments": {"id":"uuid('WithoutBraces')","captured_at":"now()","created_at":"now()"}
+    };
+    const tableDefaults = defaults[tableName] || {};
+    for (const fieldName in tableDefaults) {
+      QfLayerUtils.configureField(layer, fieldName, "", "", {}, tableDefaults[fieldName]);
+    }
+
+    const statusMap = {"map":[{"正常":"normal"},{"需关注":"attention"},{"待维修":"repair"},{"停用":"disabled"}]};
+    if (tableName === "assets_point" || tableName === "pipelines") {
+      QfLayerUtils.configureField(layer, "status", "", "ValueMap", statusMap);
+    } else if (tableName === "inspections") {
+      QfLayerUtils.configureField(layer, "result", "", "ValueMap", {"map":[{"正常":"normal"},{"需关注":"attention"},{"待维修":"repair"}]});
+      QfLayerUtils.configureField(layer, "position_accuracy_m", "", "", {}, "", true);
+    } else if (tableName === "repairs") {
+      QfLayerUtils.configureField(layer, "result", "", "ValueMap", {"map":[{"已解决":"resolved"},{"继续观察":"monitor"},{"未解决":"unresolved"}]});
+    } else if (tableName === "attachments") {
+      QfLayerUtils.configureField(layer, "media_type", "", "ValueMap", {"map":[{"照片":"photo"},{"视频":"video"},{"录音":"audio"},{"文档":"document"}]});
+      const baseResourceConfig = {"StorageMode":0,"RelativeStorage":1,"UseLink":false,"FullUrl":false,"DocumentViewerWidth":0,"DocumentViewerHeight":0};
+      QfLayerUtils.configureField(layer, "photo_path", "", "ExternalResource", Object.assign({}, baseResourceConfig, {"DocumentViewer":1}));
+      QfLayerUtils.configureField(layer, "video_path", "", "ExternalResource", Object.assign({}, baseResourceConfig, {"DocumentViewer":4}));
+      QfLayerUtils.configureField(layer, "audio_path", "", "ExternalResource", Object.assign({}, baseResourceConfig, {"DocumentViewer":3}));
+      QfLayerUtils.configureField(layer, "document_path", "", "ExternalResource", Object.assign({}, baseResourceConfig, {"DocumentViewer":0}));
+      QfLayerUtils.setLayerCustomProperty(layer, "QFieldSync/attachment_naming", JSON.stringify({
+        "photo_path":"'attachments/photos/' || coalesce(\"asset_id\", \"pipeline_id\", \"inspection_id\", \"repair_id\") || '/' || uuid('WithoutBraces') || '.{extension}'",
+        "video_path":"'attachments/videos/' || coalesce(\"asset_id\", \"pipeline_id\", \"inspection_id\", \"repair_id\") || '/' || uuid('WithoutBraces') || '.{extension}'",
+        "audio_path":"'attachments/audio/' || coalesce(\"asset_id\", \"pipeline_id\", \"inspection_id\", \"repair_id\") || '/' || uuid('WithoutBraces') || '.{extension}'",
+        "document_path":"'attachments/documents/' || coalesce(\"asset_id\", \"pipeline_id\", \"inspection_id\", \"repair_id\") || '/' || uuid('WithoutBraces') || '_{filename}'"
+      }));
+    }
+
+    if (tableName === "assets_point" || tableName === "pipelines") {
+      QfLayerUtils.setDefaultRenderer(layer, qgisProject);
+    }
+    if (tableName === "assets_point") {
+      QfLayerUtils.setDefaultLabeling(layer, qgisProject);
+    }
+    QfLayerUtils.triggerLayerRepaint(layer);
+    return true;
+  }
+
+  function addBusinessLayer(databasePath, tableName, displayName) {
+    let layer = null;
+    const namedLayers = qgisProject.mapLayersByName(displayName);
+    const tableLayers = qgisProject.mapLayersByName(tableName);
+    if (namedLayers && namedLayers.length > 0) {
+      layer = namedLayers[0];
+    } else if (tableLayers && tableLayers.length > 0) {
+      layer = tableLayers[0];
+    }
+
+    if (!layer) {
+      layer = QfLayerUtils.loadVectorLayer(
+        databasePath + "|layername=" + tableName,
+        displayName,
+        "ogr"
+      );
+      if (!layer || !layer.isValid || !QfProjectUtils.addMapLayer(qgisProject, layer)) {
+        return false;
+      }
+    }
+
+    return configureBusinessLayer(layer, tableName);
   }
 
   function ensureBusinessLayers(projectPath) {
@@ -154,6 +253,10 @@ Item {
     const zoomToolbar = iface.findItemByObjectName("zoomToolbar");
     const locatorItem = iface.findItemByObjectName("locatorItem");
     const dashBoard = iface.findItemByObjectName("dashBoard");
+    const mapThemeContainer = iface.findItemByObjectName("mapThemeContainer");
+    const legendContainer = iface.findItemByObjectName("legendContainer");
+    const locationMarker = iface.findItemByObjectName("locationMarker");
+    const qfieldSettings = iface.findItemByObjectName("qfieldSettings");
     const welcomeCloud = iface.findItemByObjectName("welcomeActionCloud");
     const welcomeNewProject = iface.findItemByObjectName("welcomeActionNewProject");
     const welcomeLocalProjects = iface.findItemByObjectName("welcomeActionLocalProjects");
@@ -170,8 +273,25 @@ Item {
     if (locatorItem) {
       locatorItem.visible = false;
     }
-    if (dashBoard && dashBoard.opened) {
-      dashBoard.close();
+    if (dashBoard) {
+      dashBoard.allowActiveLayerChange = false;
+      dashBoard.allowInteractive = false;
+      if (dashBoard.opened) {
+        dashBoard.close();
+      }
+    }
+    if (mapThemeContainer) {
+      mapThemeContainer.visible = false;
+    }
+    if (legendContainer) {
+      legendContainer.visible = false;
+    }
+    if (locationMarker) {
+      locationMarker.userVisible = workerAppSettings.showMyLocationMarker;
+    }
+    if (qfieldSettings) {
+      qfieldSettings.autoOpenFormSingleIdentify = true;
+      qfieldSettings.autoZoomToIdentifiedFeature = true;
     }
     if (welcomeCloud) {
       welcomeCloud.visible = false;
@@ -207,6 +327,15 @@ Item {
     if (gnssButton) {
       gnssButton.clicked();
     }
+  }
+
+  function setMyLocationMarkerVisible(visible) {
+    workerAppSettings.showMyLocationMarker = visible;
+    const locationMarker = iface.findItemByObjectName("locationMarker");
+    if (locationMarker) {
+      locationMarker.userVisible = visible;
+    }
+    mainWindow.displayToast(visible ? "已显示我的位置标记" : "已隐藏我的位置标记，定位仍保持开启");
   }
 
   function centerOnCurrentPosition() {
@@ -264,6 +393,7 @@ Item {
       return;
     }
 
+    QfLayerUtils.triggerLayerRepaint(layer);
     pipelineEntryDialog.close();
     pendingPipelineGeometry = null;
     mainWindow.changeMode("browse");
@@ -668,7 +798,8 @@ Item {
     if (matches.length === 0) {
       mainWindow.displayToast(radius + " 米内没有" + objectLabel);
     } else {
-      mainWindow.displayToast("已按距离载入 " + matches.length + " 个附近" + objectLabel);
+      resultsView.positionViewAtBeginning();
+      mainWindow.displayToast("找到 " + matches.length + " 个附近" + objectLabel + "，点“地图”定位，点“详情”查看");
     }
   }
 
@@ -688,6 +819,27 @@ Item {
     const feature = iterator.next();
     iterator.close();
     return feature;
+  }
+
+  function focusObjectOnMap(objectKind, objectId, showToast) {
+    const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
+    const feature = featureForObjectId(objectKind, objectId);
+    if (!layer || !feature || !featureForm) {
+      mainWindow.displayToast(objectKind === "pipeline" ? "无法在地图上定位管线" : "无法在地图上定位点位");
+      return;
+    }
+
+    const escapedId = escapeExpressionString(objectId);
+    featureForm.model.setFeatures(layer, "\"id\" = '" + escapedId + "'");
+    featureForm.selection.focusedItem = 0;
+    if (featureForm.extentController) {
+      featureForm.extentController.zoomToAllFeatures();
+    }
+    featureForm.state = "Hidden";
+    waterworksDialog.close();
+    if (showToast !== false) {
+      mainWindow.displayToast(objectKind === "pipeline" ? "已定位到管线，点击地图对象可查看详情" : "已定位到点位，点击地图标记可查看详情");
+    }
   }
 
   function navigateToAsset(assetId) {
@@ -857,6 +1009,7 @@ Item {
 
     const photoCount = pendingAssetPhotoPaths.length;
     const savedPhotoCount = savePendingAssetPhotos(assetId);
+    QfLayerUtils.triggerLayerRepaint(layer);
     clearPendingAssetPhotos(false);
     pendingAssetGeometry = null;
     assetEntryDialog.close();
@@ -870,6 +1023,11 @@ Item {
     } else {
       mainWindow.displayToast("点位已保存");
     }
+
+    Qt.callLater(function () {
+      focusObjectOnMap("asset", assetId, false);
+      mainWindow.displayToast("点位已保存并标记在地图上，点击标记可查看详情");
+    });
   }
 
   function setParentReference(feature, objectId, objectKind) {
@@ -1280,6 +1438,12 @@ Item {
 
         Button {
           Layout.fillWidth: true
+          text: workerAppSettings.showMyLocationMarker ? "隐藏我的位置" : "显示我的位置"
+          onClicked: plugin.setMyLocationMarkerVisible(!workerAppSettings.showMyLocationMarker)
+        }
+
+        Button {
+          Layout.fillWidth: true
           text: "新增点位"
           onClicked: plugin.createAssetAtCurrentPosition()
         }
@@ -1483,8 +1647,9 @@ Item {
       Label {
         Layout.fillWidth: true
         visible: searchPanelVisible && assetSearchResults.count > 0
-        text: "找到 " + assetSearchResults.count + " 条结果"
+        text: "找到 " + assetSearchResults.count + " 条结果 · 点“地图”定位，点“详情”查看"
         color: QfTheme.secondaryTextColor
+        wrapMode: Text.WordWrap
       }
 
       ListView {
@@ -1550,7 +1715,13 @@ Item {
 
               Button {
                 Layout.fillWidth: true
-                text: "查看"
+                text: "地图"
+                onClicked: plugin.focusObjectOnMap(objectKind, assetId, true)
+              }
+
+              Button {
+                Layout.fillWidth: true
+                text: "详情"
                 onClicked: plugin.openObject(objectKind, assetId, false)
               }
 
