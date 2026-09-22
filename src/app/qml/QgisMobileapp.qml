@@ -3326,6 +3326,7 @@ ApplicationWindow {
 
       QfDigitizingToolbar {
         id: digitizingToolbar
+        objectName: "digitizingToolbar"
 
         property bool digitizingAllowed: dashBoard.activeLayer && !dashBoard.activeLayer.readOnly && !QfLayerUtils.isFeatureAdditionLocked(dashBoard.activeLayer) && (projectInfo.editRights || projectInfo.insertRights)
         property string previousStateMachineState: ''
