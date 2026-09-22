@@ -115,7 +115,15 @@ def load_layers(api, project, geopackage: Path):
     return layers
 
 
-def configure_project_view_and_tree(api, project, layers, basemaps):
+def configure_project_view_and_tree(
+    api,
+    project,
+    layers,
+    *,
+    standard_basemap=None,
+    imagery_basemaps=None,
+    offline_basemaps=None,
+):
     QgsCoordinateReferenceSystem = api["QgsCoordinateReferenceSystem"]
     QgsRectangle = api["QgsRectangle"]
     QgsReferencedRectangle = api["QgsReferencedRectangle"]
@@ -141,10 +149,27 @@ def configure_project_view_and_tree(api, project, layers, basemaps):
     records_group.addLayer(layers["attachments"])
     records_group.setItemVisibilityChecked(False)
 
-    if basemaps:
+    imagery_basemaps = imagery_basemaps or []
+    offline_basemaps = offline_basemaps or []
+
+    basemap_sets = []
+    if standard_basemap is not None:
+        basemap_sets.append(("标准地图", [standard_basemap]))
+    if imagery_basemaps:
+        basemap_sets.append(("卫星地图", imagery_basemaps))
+    if offline_basemaps:
+        basemap_sets.append(("离线地图", offline_basemaps))
+
+    if basemap_sets:
         basemap_group = root.addGroup("底图")
-        for layer in basemaps:
-            basemap_group.addLayer(layer)
+        for group_name, group_layers in basemap_sets:
+            group = basemap_group.addGroup(group_name)
+            for layer in group_layers:
+                group.addLayer(layer)
+
+        # Only one basemap set is visible at a time. Prefer the online
+        # standard map, then imagery, then offline data.
+        basemap_group.setIsMutuallyExclusive(True, 0)
 
 
 def add_tianditu_vector_map(api, project, token: str | None):
@@ -223,7 +248,6 @@ def add_tianditu_imagery(api, project, token: str | None):
             raise RuntimeError(f"Unable to create TianDiTu layer: {name}")
 
         project.addMapLayer(layer, False)
-        project.layerTreeRoot().addLayer(layer)
         added.append(layer)
 
     return added
@@ -333,7 +357,6 @@ def add_offline_basemap(api, project, path: Path):
         raise RuntimeError(f"Unable to load offline basemap: {path}")
 
     project.addMapLayer(layer, False)
-    project.layerTreeRoot().addLayer(layer)
     return layer
 
 
@@ -520,20 +543,29 @@ def build_project(
         project.setFilePathStorage(Qgis.FilePathType.Relative)
 
         layers = load_layers(api, project, geopackage.resolve())
-        basemaps = []
         vector_basemap = add_tianditu_vector_map(
             api,
             project,
             tianditu_token,
         )
-        if vector_basemap is not None:
-            basemaps.append(vector_basemap)
-        basemaps.extend(
-            add_tianditu_imagery(api, project, tianditu_token)
+        imagery_layers = add_tianditu_imagery(
+            api,
+            project,
+            tianditu_token,
         )
+        offline_layers = []
         for offline_basemap in offline_basemaps or []:
-            basemaps.append(add_offline_basemap(api, project, offline_basemap))
-        configure_project_view_and_tree(api, project, layers, basemaps)
+            offline_layers.append(
+                add_offline_basemap(api, project, offline_basemap)
+            )
+        configure_project_view_and_tree(
+            api,
+            project,
+            layers,
+            standard_basemap=vector_basemap,
+            imagery_basemaps=imagery_layers,
+            offline_basemaps=offline_layers,
+        )
         configure_fields(api, layers)
         configure_map_style(api, layers)
         relations = configure_relations(api, project, layers)
