@@ -174,6 +174,14 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("qfieldSettings.autoOpenFormSingleIdentify = true", self.text)
         self.assertIn("qfieldSettings.autoZoomToIdentifiedFeature = true", self.text)
 
+    def test_map_object_details_gain_edit_actions_only_when_unlocked(self) -> None:
+        self.assertIn('objectName: "waterworksFocusedObjectActionBar"', self.text)
+        self.assertIn("function focusedBusinessObjectKind()", self.text)
+        self.assertIn("function focusedBusinessObjectId()", self.text)
+        self.assertIn("visible: workerAppSettings.editEnabled", self.text)
+        for label in ("编辑", "巡检", "维修", "附件"):
+            self.assertIn(f'text: "{label}"', self.text)
+
     def test_project_load_activates_and_centers_location(self) -> None:
         self.assertIn("function activateAndCenterLocation()", self.text)
         self.assertIn('iface.findItemByObjectName("positioningSettings")', self.text)
