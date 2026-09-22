@@ -459,6 +459,39 @@ void QfLayerUtils::clearLayerSelection( QgsVectorLayer *layer )
   }
 }
 
+int QfLayerUtils::deleteFeaturesByExpression( QgsProject *project, QgsVectorLayer *layer, const QString &expression )
+{
+  if ( !project || !layer )
+  {
+    return -1;
+  }
+
+  QgsFeatureRequest request;
+  if ( !expression.trimmed().isEmpty() )
+  {
+    request.setFilterExpression( expression );
+  }
+
+  QList<QgsFeatureId> ids;
+  QgsFeatureIterator iterator = layer->getFeatures( request );
+  QgsFeature feature;
+  while ( iterator.nextFeature( feature ) )
+  {
+    ids.append( feature.id() );
+  }
+
+  int deleted = 0;
+  for ( const QgsFeatureId fid : std::as_const( ids ) )
+  {
+    if ( !deleteFeature( project, layer, fid, true ) )
+    {
+      return -1;
+    }
+    deleted++;
+  }
+  return deleted;
+}
+
 QString QfLayerUtils::fieldType( const QgsField &field )
 {
   return QVariant( QMetaType( field.type() ) ).typeName();
