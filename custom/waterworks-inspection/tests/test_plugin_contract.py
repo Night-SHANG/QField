@@ -201,7 +201,7 @@ class PluginContractTests(unittest.TestCase):
         self.assertGreaterEqual(self.text.count("iterator.close()"), 4)
 
     def test_problem_filter_covers_attention_and_repair(self) -> None:
-        self.assertIn('value: "problem"', self.text)
+        self.assertIn('"value":"problem"', self.text)
         self.assertIn('statusValue === "problem"', self.text)
         self.assertIn("'attention', 'repair'", self.text)
 
@@ -227,7 +227,7 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('"assetDistance":', self.text)
         self.assertIn("required property string objectKind", self.text)
         self.assertIn("required property int assetDistance", self.text)
-        self.assertIn('value: "pipeline"', self.text)
+        self.assertIn('"value":"pipeline"', self.text)
         self.assertIn('visible: objectKind === "asset"', self.text)
 
     def test_field_capture_surfaces_accuracy_warning(self) -> None:
