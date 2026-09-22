@@ -161,7 +161,8 @@ CREATE TABLE repairs (
   repaired_at DATETIME,
   repair_type TEXT,
   description TEXT,
-  result TEXT,
+  result TEXT NOT NULL DEFAULT 'unresolved'
+    CHECK (result IN ('resolved', 'monitor', 'unresolved')),
   operator TEXT,
   note TEXT
 );
@@ -302,6 +303,27 @@ BEGIN
     WHERE asset_id = OLD.asset_id
   )
   WHERE id = OLD.asset_id;
+END;
+
+
+CREATE TRIGGER trg_repair_insert_completion_time
+AFTER INSERT ON repairs
+FOR EACH ROW
+WHEN NEW.result = 'resolved' AND NEW.repaired_at IS NULL
+BEGIN
+  UPDATE repairs
+  SET repaired_at = CURRENT_TIMESTAMP
+  WHERE fid = NEW.fid;
+END;
+
+CREATE TRIGGER trg_repair_update_completion_time
+AFTER UPDATE OF result ON repairs
+FOR EACH ROW
+WHEN NEW.result = 'resolved' AND NEW.repaired_at IS NULL
+BEGIN
+  UPDATE repairs
+  SET repaired_at = CURRENT_TIMESTAMP
+  WHERE fid = NEW.fid;
 END;
 """
 
