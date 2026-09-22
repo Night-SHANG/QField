@@ -174,13 +174,13 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("qfieldSettings.autoOpenFormSingleIdentify = true", self.text)
         self.assertIn("qfieldSettings.autoZoomToIdentifiedFeature = true", self.text)
 
-    def test_map_object_details_gain_edit_actions_only_when_unlocked(self) -> None:
+    def test_map_object_details_focus_on_network_and_attachments(self) -> None:
         self.assertIn('objectName: "waterworksFocusedObjectActionBar"', self.text)
         self.assertIn("function focusedBusinessObjectKind()", self.text)
         self.assertIn("function focusedBusinessObjectId()", self.text)
-        self.assertIn("visible: workerAppSettings.editEnabled", self.text)
-        for label in ("编辑", "巡检", "维修", "附件"):
-            self.assertIn(f'text: "{label}"', self.text)
+        self.assertIn('text: "照片/附件"', self.text)
+        self.assertIn('text: "编辑"', self.text)
+        self.assertIn('text: "删除"', self.text)
 
     def test_project_load_activates_and_centers_location(self) -> None:
         self.assertIn("function activateAndCenterLocation()", self.text)
@@ -235,6 +235,21 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("accuracyWarningMeters: 15", self.text)
         self.assertIn("精度 ±", self.text)
         self.assertIn("建议到开阔位置等待定位稳定后再放点", self.text)
+
+    def test_required_fields_are_explicit_and_enforced(self) -> None:
+        self.assertIn('text: "设施类型 *"', self.text)
+        self.assertIn('text: "* 为必填；其余信息不知道时可以先不填"', self.text)
+        self.assertIn('mainWindow.displayToast("请选择设施类型（* 必填）")', self.text)
+        self.assertIn('placeholderText: "位置描述（可选）', self.text)
+        self.assertIn('text: "管线位置已经画好。下面参数均为可选，不知道时可以直接保存。"', self.text)
+
+    def test_manual_pipe_relation_is_hidden_from_asset_form(self) -> None:
+        self.assertIn('"assets_point": ["fid", "id", "pipeline_id", "last_inspection_at"', self.text)
+
+    def test_inspection_and_repair_buttons_are_not_in_field_ui(self) -> None:
+        focused_block = self.text.split('id: focusedObjectActionBar', 1)[1].split('id: attachmentDrawer', 1)[0]
+        self.assertNotIn('text: "巡检"', focused_block)
+        self.assertNotIn('text: "维修"', focused_block)
 
     def test_inspection_accuracy_checks_validity(self) -> None:
         self.assertIn("info.haccValid", self.text)
