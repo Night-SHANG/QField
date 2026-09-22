@@ -38,10 +38,20 @@ class PluginContractTests(unittest.TestCase):
 
     def test_nearby_lookup_is_meter_based_and_location_independent(self) -> None:
         self.assertIn("nearbyRadiusMeters", self.text)
+        self.assertIn("function loadNearbyObjects(radiusMeters)", self.text)
+        self.assertIn("QfExpressionEvaluator", self.text)
+        self.assertIn("nearbyDistanceEvaluator.evaluate(distanceValueExpression)", self.text)
         self.assertIn("utmZone", self.text)
         self.assertIn("32600", self.text)
         self.assertIn("32700", self.text)
         self.assertNotIn("EPSG:32649", self.text)
+
+    def test_nearby_pipeline_distance_uses_full_geometry(self) -> None:
+        self.assertIn("distanceValueExpression", self.text)
+        self.assertIn("transform($geometry", self.text)
+        self.assertIn('objectKind === "pipeline" ? pipelineLayer() : assetLayer()', self.text)
+        self.assertIn('text: plugin.selectedSearchKind() === "pipeline" ? "附近管线" : "附近点位"', self.text)
+        self.assertNotIn("function loadNearbyAssets(radiusMeters)", self.text)
 
     def test_asset_types_are_loaded_from_project_data(self) -> None:
         self.assertIn("readonly property var assetTypeLayerNames", self.text)
