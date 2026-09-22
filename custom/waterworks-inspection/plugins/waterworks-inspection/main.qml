@@ -20,6 +20,7 @@ Item {
 
   readonly property var assetTypeLayerNames: ["设施类型配置", "asset_types"]
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
+  readonly property var pipelineLayerNames: ["供水管线", "pipelines"]
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
   readonly property var repairLayerNames: ["维修记录", "repairs"]
   readonly property var attachmentLayerNames: ["附件", "attachments"]
@@ -45,6 +46,16 @@ Item {
   function assetLayer() {
     for (let i = 0; i < assetLayerNames.length; i++) {
       const layers = qgisProject.mapLayersByName(assetLayerNames[i]);
+      if (layers && layers.length > 0) {
+        return layers[0];
+      }
+    }
+    return null;
+  }
+
+  function pipelineLayer() {
+    for (let i = 0; i < pipelineLayerNames.length; i++) {
+      const layers = qgisProject.mapLayersByName(pipelineLayerNames[i]);
       if (layers && layers.length > 0) {
         return layers[0];
       }
@@ -122,6 +133,13 @@ Item {
     return String(value || "").replace(/'/g, "''");
   }
 
+  function selectedSearchKind() {
+    if (!searchTargetFilter || searchTargetFilter.currentIndex < 0) {
+      return "asset";
+    }
+    return searchTargetFilter.model[searchTargetFilter.currentIndex].value;
+  }
+
   function selectedAssetType() {
     if (!assetTypeFilter || assetTypeFilter.currentIndex < 0) {
       return "";
@@ -137,16 +155,18 @@ Item {
     return assetStatusFilter.model[assetStatusFilter.currentIndex].value;
   }
 
-  function applyAssetFilters(baseExpression) {
+  function applySearchFilters(baseExpression, objectKind) {
     const clauses = [];
     const base = String(baseExpression || "").trim();
     if (base.length > 0) {
       clauses.push("(" + base + ")");
     }
 
-    const typeValue = selectedAssetType();
-    if (typeValue.length > 0) {
-      clauses.push("\"asset_type\" = '" + escapeExpressionString(typeValue) + "'");
+    if (objectKind === "asset") {
+      const typeValue = selectedAssetType();
+      if (typeValue.length > 0) {
+        clauses.push("\"asset_type\" = '" + escapeExpressionString(typeValue) + "'");
+      }
     }
 
     const statusValue = selectedAssetStatus();
@@ -221,16 +241,38 @@ Item {
     }
   }
 
-  function appendAssetResult(feature, distanceMeters) {
+  function appendSearchResult(feature, objectKind, distanceMeters) {
     const idValue = feature.attribute("id");
     const nameValue = feature.attribute("name");
     const codeValue = feature.attribute("code");
-    const typeValue = feature.attribute("asset_type");
     const statusValue = feature.attribute("status");
+    let typeValue = "";
+    let fallbackName = "未命名点位";
+
+    if (objectKind === "asset") {
+      typeValue = feature.attribute("asset_type");
+    } else {
+      fallbackName = "未命名管线";
+      const parts = [];
+      const diameter = Number(feature.attribute("diameter_mm"));
+      const pipeType = feature.attribute("pipe_type");
+      const material = feature.attribute("material");
+      if (isFinite(diameter) && diameter > 0) {
+        parts.push("DN" + Math.round(diameter));
+      }
+      if (pipeType !== null && pipeType !== undefined && String(pipeType).length > 0) {
+        parts.push(String(pipeType));
+      }
+      if (material !== null && material !== undefined && String(material).length > 0) {
+        parts.push(String(material));
+      }
+      typeValue = parts.join(" · ");
+    }
 
     assetSearchResults.append({
+      "objectKind": objectKind,
       "assetId": idValue === null || idValue === undefined ? "" : String(idValue),
-      "assetName": nameValue === null || nameValue === undefined || String(nameValue).length === 0 ? "未命名点位" : String(nameValue),
+      "assetName": nameValue === null || nameValue === undefined || String(nameValue).length === 0 ? fallbackName : String(nameValue),
       "assetCode": codeValue === null || codeValue === undefined ? "" : String(codeValue),
       "assetType": typeValue === null || typeValue === undefined ? "" : String(typeValue),
       "assetStatus": statusValue === null || statusValue === undefined ? "" : String(statusValue),
@@ -238,12 +280,13 @@ Item {
     });
   }
 
-  function searchAssets(term) {
+  function searchObjects(term) {
     assetSearchResults.clear();
 
-    const layer = assetLayer();
+    const objectKind = selectedSearchKind();
+    const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“供水设施”图层");
+      mainWindow.displayToast(objectKind === "pipeline" ? "当前项目缺少“供水管线”图层" : "当前项目缺少“供水设施”图层");
       return;
     }
 
@@ -253,15 +296,25 @@ Item {
     let textExpression = "";
     if (trimmed.length > 0) {
       const needle = escapeExpressionString(trimmed.toLowerCase());
-      textExpression = "lower(coalesce(\"name\", '')) LIKE '%" + needle + "%' OR " + "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " + "lower(coalesce(\"address_hint\", '')) LIKE '%" + needle + "%'";
+      if (objectKind === "pipeline") {
+        textExpression = "lower(coalesce(\"name\", '')) LIKE '%" + needle + "%' OR " +
+                         "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " +
+                         "lower(coalesce(\"pipe_type\", '')) LIKE '%" + needle + "%' OR " +
+                         "lower(coalesce(\"material\", '')) LIKE '%" + needle + "%' OR " +
+                         "lower(coalesce(\"pressure_zone\", '')) LIKE '%" + needle + "%'";
+      } else {
+        textExpression = "lower(coalesce(\"name\", '')) LIKE '%" + needle + "%' OR " +
+                         "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " +
+                         "lower(coalesce(\"address_hint\", '')) LIKE '%" + needle + "%'";
+      }
     }
 
-    const expression = applyAssetFilters(textExpression);
+    const expression = applySearchFilters(textExpression, objectKind);
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
     let count = 0;
 
     while (iterator.hasNext() && count < 100) {
-      appendAssetResult(iterator.next());
+      appendSearchResult(iterator.next(), objectKind);
       count++;
     }
     const hasMore = iterator.hasNext();
@@ -270,7 +323,7 @@ Item {
     searchBusy = false;
 
     if (count === 0) {
-      mainWindow.displayToast("未找到匹配点位");
+      mainWindow.displayToast(objectKind === "pipeline" ? "未找到匹配管线" : "未找到匹配点位");
     } else if (hasMore) {
       mainWindow.displayToast("结果超过 100 条，请缩小筛选范围");
     }
@@ -310,7 +363,7 @@ Item {
     const utmEpsg = (lat >= 0 ? 32600 : 32700) + utmZone;
     const distanceCrs = "EPSG:" + utmEpsg;
     const distanceExpression = "distance(" + "transform($geometry, 'EPSG:4490', '" + distanceCrs + "'), " + "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', '" + distanceCrs + "')" + ") <= " + radius;
-    const expression = applyAssetFilters(distanceExpression);
+    const expression = applySearchFilters(distanceExpression, "asset");
 
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
     const distanceCrsObject = QfCoordinateReferenceSystemUtils.fromDescription(distanceCrs);
@@ -332,7 +385,7 @@ Item {
 
     matches.sort((a, b) => a.distance - b.distance);
     for (let i = 0; i < matches.length; i++) {
-      appendAssetResult(matches[i].feature, matches[i].distance);
+      appendSearchResult(matches[i].feature, "asset", matches[i].distance);
     }
 
     searchBusy = false;
@@ -345,13 +398,13 @@ Item {
     }
   }
 
-  function featureForAssetId(assetId) {
-    const layer = assetLayer();
-    if (!layer || !assetId) {
+  function featureForObjectId(objectKind, objectId) {
+    const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
+    if (!layer || !objectId) {
       return null;
     }
 
-    const escapedId = escapeExpressionString(assetId);
+    const escapedId = escapeExpressionString(objectId);
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, "\"id\" = '" + escapedId + "'");
     if (!iterator.hasNext()) {
       iterator.close();
@@ -365,7 +418,7 @@ Item {
 
   function navigateToAsset(assetId) {
     const layer = assetLayer();
-    const feature = featureForAssetId(assetId);
+    const feature = featureForObjectId("asset", assetId);
     if (!layer || !feature || !navigation) {
       mainWindow.displayToast("无法开始点位导航");
       return;
@@ -376,14 +429,14 @@ Item {
     mainWindow.displayToast("开始导航：" + QfFeatureUtils.displayName(layer, feature));
   }
 
-  function openAsset(assetId, editMode) {
-    const layer = assetLayer();
-    if (!layer || !featureForm || !assetId) {
-      mainWindow.displayToast("无法打开点位");
+  function openObject(objectKind, objectId, editMode) {
+    const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
+    if (!layer || !featureForm || !objectId) {
+      mainWindow.displayToast(objectKind === "pipeline" ? "无法打开管线" : "无法打开点位");
       return;
     }
 
-    const escapedId = escapeExpressionString(assetId);
+    const escapedId = escapeExpressionString(objectId);
     featureForm.model.setFeatures(layer, "\"id\" = '" + escapedId + "'");
     featureForm.selection.focusedItem = 0;
     featureForm.state = editMode ? "FeatureFormEdit" : "FeatureForm";
@@ -433,14 +486,24 @@ Item {
     overlayFeatureFormDrawer.open();
   }
 
-  function createInspection(assetId) {
+  function setParentReference(feature, objectId, objectKind) {
+    if (objectKind === "pipeline") {
+      feature.setAttribute("pipeline_id", objectId);
+      feature.setAttribute("asset_id", null);
+    } else {
+      feature.setAttribute("asset_id", objectId);
+      feature.setAttribute("pipeline_id", null);
+    }
+  }
+
+  function createInspection(objectId, objectKind) {
     const layer = inspectionLayer();
     if (!layer) {
       mainWindow.displayToast("当前项目缺少“巡检记录”图层");
       return;
     }
-    if (!assetId) {
-      mainWindow.displayToast("无法确定巡检设施");
+    if (!objectId) {
+      mainWindow.displayToast("无法确定巡检对象");
       return;
     }
     if (!overlayFeatureFormDrawer) {
@@ -449,7 +512,7 @@ Item {
     }
 
     const feature = QfFeatureUtils.createFeature(layer);
-    feature.setAttribute("asset_id", assetId);
+    setParentReference(feature, objectId, objectKind);
 
     const positioning = iface.positioning();
     if (positioning && positioning.active && positioning.positionInformation) {
@@ -466,14 +529,14 @@ Item {
     overlayFeatureFormDrawer.open();
   }
 
-  function createRepair(assetId) {
+  function createRepair(objectId, objectKind) {
     const layer = repairLayer();
     if (!layer) {
       mainWindow.displayToast("当前项目缺少“维修记录”图层");
       return;
     }
-    if (!assetId) {
-      mainWindow.displayToast("无法确定维修设施");
+    if (!objectId) {
+      mainWindow.displayToast("无法确定维修对象");
       return;
     }
     if (!overlayFeatureFormDrawer) {
@@ -482,7 +545,7 @@ Item {
     }
 
     const feature = QfFeatureUtils.createFeature(layer);
-    feature.setAttribute("asset_id", assetId);
+    setParentReference(feature, objectId, objectKind);
 
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
@@ -490,14 +553,14 @@ Item {
     overlayFeatureFormDrawer.open();
   }
 
-  function createAssetAttachment(assetId) {
+  function createAttachment(objectId, objectKind) {
     const layer = attachmentLayer();
     if (!layer) {
       mainWindow.displayToast("当前项目缺少“附件”图层");
       return;
     }
-    if (!assetId) {
-      mainWindow.displayToast("无法确定附件所属设施");
+    if (!objectId) {
+      mainWindow.displayToast("无法确定附件所属对象");
       return;
     }
     if (!overlayFeatureFormDrawer) {
@@ -506,7 +569,7 @@ Item {
     }
 
     const feature = QfFeatureUtils.createFeature(layer);
-    feature.setAttribute("asset_id", assetId);
+    setParentReference(feature, objectId, objectKind);
 
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
@@ -592,9 +655,37 @@ Item {
 
       Label {
         Layout.fillWidth: true
-        text: "查找点位"
+        text: "查找设施 / 管线"
         font.bold: true
         color: QfTheme.mainTextColor
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        ComboBox {
+          id: searchTargetFilter
+          Layout.fillWidth: true
+          model: [
+            {
+              text: "点位",
+              value: "asset"
+            },
+            {
+              text: "管线",
+              value: "pipeline"
+            }
+          ]
+          textRole: "text"
+          currentIndex: 0
+
+          onCurrentIndexChanged: {
+            assetSearchResults.clear()
+            if (assetTypeFilter) {
+              assetTypeFilter.currentIndex = 0
+            }
+          }
+        }
       }
 
       RowLayout {
@@ -607,6 +698,7 @@ Item {
           model: assetTypeOptions
           textRole: "text"
           currentIndex: 0
+          enabled: plugin.selectedSearchKind() === "asset"
         }
 
         ComboBox {
@@ -677,7 +769,7 @@ Item {
 
         Button {
           text: "附近点位"
-          enabled: !searchBusy
+          enabled: !searchBusy && plugin.selectedSearchKind() === "asset"
           onClicked: {
             const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex];
             plugin.loadNearbyAssets(item.value);
@@ -691,22 +783,22 @@ Item {
         TextField {
           id: assetSearchField
           Layout.fillWidth: true
-          placeholderText: "输入名称、编号或位置描述"
+          placeholderText: plugin.selectedSearchKind() === "pipeline" ? "输入管线名称、编号、材质或压力分区" : "输入名称、编号或位置描述"
           selectByMouse: true
-          onAccepted: plugin.searchAssets(text)
+          onAccepted: plugin.searchObjects(text)
         }
 
         Button {
           text: searchBusy ? "查询中" : "查询"
           enabled: !searchBusy
-          onClicked: plugin.searchAssets(assetSearchField.text)
+          onClicked: plugin.searchObjects(assetSearchField.text)
         }
       }
 
       Label {
         Layout.fillWidth: true
         visible: assetSearchResults.count > 0
-        text: "找到 " + assetSearchResults.count + " 个点位"
+        text: "找到 " + assetSearchResults.count + " 条结果"
         color: QfTheme.secondaryTextColor
       }
 
@@ -719,6 +811,7 @@ Item {
         model: assetSearchResults
 
         delegate: Rectangle {
+          required property string objectKind
           required property string assetId
           required property string assetName
           required property string assetCode
@@ -752,7 +845,7 @@ Item {
 
             Label {
               Layout.fillWidth: true
-              text: (assetDistance >= 0 ? assetDistance + " m  " : "") + (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") + (assetType.length > 0 ? plugin.assetTypeLabel(assetType) + "  " : "") + (assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : "")
+              text: (assetDistance >= 0 ? assetDistance + " m  " : "") + (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") + (assetType.length > 0 ? (objectKind === "asset" ? plugin.assetTypeLabel(assetType) : assetType) + "  " : "") + (assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : "")
               color: QfTheme.secondaryTextColor
               elide: Text.ElideRight
             }
@@ -763,18 +856,19 @@ Item {
               Button {
                 Layout.fillWidth: true
                 text: "查看"
-                onClicked: plugin.openAsset(assetId, false)
+                onClicked: plugin.openObject(objectKind, assetId, false)
               }
 
               Button {
                 Layout.fillWidth: true
                 text: "编辑"
-                onClicked: plugin.openAsset(assetId, true)
+                onClicked: plugin.openObject(objectKind, assetId, true)
               }
 
               Button {
                 Layout.fillWidth: true
                 text: "导航"
+                visible: objectKind === "asset"
                 onClicked: plugin.navigateToAsset(assetId)
               }
             }
@@ -785,19 +879,19 @@ Item {
               Button {
                 Layout.fillWidth: true
                 text: "巡检"
-                onClicked: plugin.createInspection(assetId)
+                onClicked: plugin.createInspection(assetId, objectKind)
               }
 
               Button {
                 Layout.fillWidth: true
                 text: "维修"
-                onClicked: plugin.createRepair(assetId)
+                onClicked: plugin.createRepair(assetId, objectKind)
               }
 
               Button {
                 Layout.fillWidth: true
                 text: "附件"
-                onClicked: plugin.createAssetAttachment(assetId)
+                onClicked: plugin.createAttachment(assetId, objectKind)
               }
             }
           }
