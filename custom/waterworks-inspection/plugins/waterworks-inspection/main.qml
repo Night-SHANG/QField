@@ -1240,8 +1240,11 @@ Item {
     if (!value) {
       return "";
     }
-    if (!QfUrlUtils.isRelativeOrFileUrl(value) || value.indexOf("file://") === 0) {
+    if (value.indexOf("file://") === 0) {
       return QfUrlUtils.toLocalFile(value);
+    }
+    if (value.indexOf("/") === 0 || /^[A-Za-z]:[\\/]/.test(value)) {
+      return value;
     }
     return qgisProject.homePath + "/" + value;
   }
@@ -1393,7 +1396,7 @@ Item {
       iterator.close();
 
       if (QfLayerUtils.deleteFeaturesByExpression(qgisProject, attachments, parentExpr) < 0) {
-        mainWindow.displayToast("删除附件记录失败，点位未删除");
+        mainWindow.displayToast("删除附件记录失败，对象未删除");
         deleteObjectDialog.close();
         return;
       }
@@ -1462,7 +1465,6 @@ Item {
     }
 
     overlayFeatureFormDrawer.featureModel.currentLayer = layer;
-    overlayFeatureFormDrawer.featureModel.currentLayer = layer;
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
     closeTransientPanels();
@@ -1490,6 +1492,7 @@ Item {
     const feature = QfFeatureUtils.createFeature(layer);
     setParentReference(feature, objectId, objectKind);
 
+    overlayFeatureFormDrawer.featureModel.currentLayer = layer;
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
     closeTransientPanels();
