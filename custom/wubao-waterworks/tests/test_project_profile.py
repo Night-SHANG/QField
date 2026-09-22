@@ -73,6 +73,22 @@ class ProjectProfileTests(unittest.TestCase):
         for config in profile.ATTACHMENT_CONFIGS.values():
             self.assertEqual(config["RelativeStorage"], 1)
 
+    def test_attachment_naming_uses_structured_project_paths(self) -> None:
+        self.assertEqual(
+            set(profile.ATTACHMENT_NAMING),
+            {"photo_path", "video_path", "audio_path", "document_path"},
+        )
+        for field, expression in profile.ATTACHMENT_NAMING.items():
+            self.assertIn("attachments/", expression)
+            self.assertIn("uuid('WithoutBraces')", expression)
+            self.assertTrue(field.endswith("_path"))
+
+    def test_offline_basemap_formats_are_explicit(self) -> None:
+        self.assertEqual(
+            profile.SUPPORTED_OFFLINE_BASEMAP_EXTENSIONS,
+            {".mbtiles", ".tif", ".tiff"},
+        )
+
     def test_attachment_viewers_cover_native_capture_modes(self) -> None:
         viewers = {
             field: config["DocumentViewer"]
