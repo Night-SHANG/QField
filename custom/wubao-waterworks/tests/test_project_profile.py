@@ -90,6 +90,31 @@ class ProjectProfileTests(unittest.TestCase):
         self.assertIn('"name"', profile.ASSET_LABEL_EXPRESSION)
         self.assertIn('"code"', profile.ASSET_LABEL_EXPRESSION)
 
+    def test_attachment_media_type_map_matches_capture_fields(self) -> None:
+        media_types = {
+            next(iter(item.values()))
+            for item in profile.VALUE_MAPS[("attachments", "media_type")]
+        }
+        configured_types = {
+            media_type
+            for media_type, _label in profile.ATTACHMENT_MEDIA_FIELDS.values()
+        }
+        self.assertEqual(
+            media_types,
+            {"photo", "video", "audio", "document"},
+        )
+        self.assertEqual(media_types, configured_types)
+
+    def test_system_maintained_fields_are_read_only(self) -> None:
+        self.assertIn(
+            "last_inspection_at",
+            profile.READ_ONLY_FIELDS["assets_point"],
+        )
+        self.assertIn(
+            "position_accuracy_m",
+            profile.READ_ONLY_FIELDS["inspections"],
+        )
+
     def test_attachment_widgets_use_relative_storage(self) -> None:
         self.assertEqual(
             set(profile.ATTACHMENT_CONFIGS),
