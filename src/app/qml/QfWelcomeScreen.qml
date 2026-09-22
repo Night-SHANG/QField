@@ -11,6 +11,7 @@ import org.qfield.gui
  */
 Page {
   id: welcomeScreen
+  objectName: "welcomeScreen"
 
   property bool firstShown: false
 
