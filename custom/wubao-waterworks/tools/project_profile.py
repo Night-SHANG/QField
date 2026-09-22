@@ -23,7 +23,14 @@ CASE WHEN coalesce("code", '') <> '' THEN ' [' || "code" || ']' ELSE '' END""",
 CASE WHEN coalesce("code", '') <> '' THEN ' [' || "code" || ']' ELSE '' END""",
     "inspections": """coalesce("inspector", '未填写人员') || ' · ' ||
 coalesce(to_string("inspected_at"), '未填写时间')""",
-    "attachments": """coalesce("caption", "file_path")""",
+    "attachments": """coalesce(
+"caption",
+"photo_path",
+"video_path",
+"audio_path",
+"document_path",
+'附件'
+)""",
     "repairs": """coalesce("repair_type", '维修') || ' · ' ||
 coalesce(to_string("reported_at"), '未填写时间')""",
 }
@@ -69,8 +76,10 @@ ALIASES = {
         "created_at": "创建时间",
     },
     "attachments": {
-        "media_type": "附件类型",
-        "file_path": "附件文件",
+        "photo_path": "照片",
+        "video_path": "视频",
+        "audio_path": "录音",
+        "document_path": "文档",
         "caption": "说明",
         "captured_at": "采集时间",
         "created_at": "创建时间",
@@ -115,12 +124,6 @@ VALUE_MAPS = {
         {"正常": "normal"},
         {"需关注": "attention"},
         {"待维修": "repair"},
-    ],
-    ("attachments", "media_type"): [
-        {"照片": "photo"},
-        {"视频": "video"},
-        {"音频": "audio"},
-        {"文档": "document"},
     ],
 }
 
@@ -180,7 +183,10 @@ FORM_FIELDS = {
         "inspected_at", "inspector", "result", "pressure_value", "issue",
         "action_taken", "note", "position_accuracy_m",
     ],
-    "attachments": ["media_type", "file_path", "caption", "captured_at"],
+    "attachments": [
+        "photo_path", "video_path", "audio_path", "document_path",
+        "caption", "captured_at",
+    ],
     "repairs": [
         "reported_at", "repaired_at", "repair_type", "description", "result",
         "operator", "note",
@@ -196,15 +202,21 @@ FORM_RELATIONS = {
     "repairs": ["repair_attachments"],
 }
 
-ATTACHMENT_CONFIG = {
+ATTACHMENT_BASE_CONFIG = {
     "StorageMode": 0,
     "RelativeStorage": 1,
-    "FileWidget": True,
-    "FileWidgetButton": True,
-    "FileWidgetFilter": "",
-    "DocumentViewer": 1,
+    "UseLink": False,
+    "FullUrl": False,
     "DocumentViewerWidth": 0,
     "DocumentViewerHeight": 0,
+}
+
+ATTACHMENT_CONFIGS = {
+    # QField ExternalResource viewer: file=0, image=1, audio=3, video=4.
+    "photo_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 1},
+    "video_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 4},
+    "audio_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 3},
+    "document_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 0},
 }
 
 
