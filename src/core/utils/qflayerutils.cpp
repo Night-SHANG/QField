@@ -18,6 +18,9 @@
 
 #include <QQmlEngine>
 #include <QScopeGuard>
+#include <qgsdefaultvalue.h>
+#include <qgseditformconfig.h>
+#include <qgseditorwidgetsetup.h>
 #include <qgsfillsymbol.h>
 #include <qgsfillsymbollayer.h>
 #include <qgshuesaturationfilter.h>
@@ -193,6 +196,74 @@ QgsSymbol *QfLayerUtils::defaultSymbol( QgsVectorLayer *layer, const QString &at
       break;
   }
   return symbol;
+}
+
+bool QfLayerUtils::configureField( QgsVectorLayer *layer, const QString &fieldName, const QString &alias, const QString &widgetType, const QVariantMap &widgetConfig, const QString &defaultValueExpression, bool readOnly )
+{
+  if ( !layer )
+  {
+    return false;
+  }
+
+  const int fieldIndex = layer->fields().indexOf( fieldName );
+  if ( fieldIndex < 0 )
+  {
+    return false;
+  }
+
+  if ( !alias.isEmpty() )
+  {
+    layer->setFieldAlias( fieldIndex, alias );
+  }
+
+  if ( !widgetType.isEmpty() )
+  {
+    layer->setEditorWidgetSetup( fieldIndex, QgsEditorWidgetSetup( widgetType, widgetConfig ) );
+  }
+
+  if ( !defaultValueExpression.isEmpty() )
+  {
+    layer->setDefaultValueDefinition( fieldIndex, QgsDefaultValue( defaultValueExpression ) );
+  }
+
+  if ( readOnly )
+  {
+    QgsEditFormConfig config = layer->editFormConfig();
+    config.setReadOnly( fieldIndex, true );
+    layer->setEditFormConfig( config );
+  }
+
+  return true;
+}
+
+bool QfLayerUtils::setLayerDisplayExpression( QgsVectorLayer *layer, const QString &expression )
+{
+  if ( !layer )
+  {
+    return false;
+  }
+
+  layer->setDisplayExpression( expression );
+  return true;
+}
+
+bool QfLayerUtils::setLayerCustomProperty( QgsVectorLayer *layer, const QString &key, const QVariant &value )
+{
+  if ( !layer || key.isEmpty() )
+  {
+    return false;
+  }
+
+  layer->setCustomProperty( key, value );
+  return true;
+}
+
+void QfLayerUtils::triggerLayerRepaint( QgsMapLayer *layer )
+{
+  if ( layer )
+  {
+    layer->triggerRepaint();
+  }
 }
 
 void QfLayerUtils::setDefaultLabeling( QgsVectorLayer *layer, QgsProject *project )
