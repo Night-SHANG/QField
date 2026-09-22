@@ -85,6 +85,7 @@ ALIASES = {
         "created_at": "创建时间",
     },
     "attachments": {
+        "media_type": "附件类型",
         "photo_path": "照片",
         "video_path": "视频",
         "audio_path": "录音",
@@ -140,6 +141,12 @@ VALUE_MAPS = {
         {"未解决": "unresolved"},
     ],
 }
+    ("attachments", "media_type"): [
+        {"照片": "photo"},
+        {"视频": "video"},
+        {"录音": "audio"},
+        {"文档": "document"},
+    ],
 
 DEFAULTS = {
     ("assets_point", "id"): "uuid('WithoutBraces')",
@@ -202,10 +209,7 @@ FORM_FIELDS = {
         "inspected_at", "inspector", "result", "pressure_value", "issue",
         "action_taken", "note", "position_accuracy_m",
     ],
-    "attachments": [
-        "photo_path", "video_path", "audio_path", "document_path",
-        "caption", "captured_at",
-    ],
+    "attachments": ["media_type", "caption", "captured_at"],
     "repairs": [
         "reported_at", "repaired_at", "repair_type", "description", "result",
         "operator", "note",
@@ -236,6 +240,13 @@ ATTACHMENT_CONFIGS = {
     "video_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 4},
     "audio_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 3},
     "document_path": {**ATTACHMENT_BASE_CONFIG, "DocumentViewer": 0},
+}
+
+ATTACHMENT_MEDIA_FIELDS = {
+    "photo_path": ("photo", "拍照 / 图片"),
+    "video_path": ("video", "录像 / 视频"),
+    "audio_path": ("audio", "录音"),
+    "document_path": ("document", "文档"),
 }
 
 ATTACHMENT_NAMING = {
