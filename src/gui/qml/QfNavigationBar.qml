@@ -29,6 +29,7 @@ Rectangle {
 
   property bool multiSelection
   property bool allowDelete
+  property bool allowProcessing: true
   property bool isVertical: false
 
   property QfMultiFeatureListModel model
@@ -606,7 +607,9 @@ Rectangle {
       text: qsTr('Process Selected Feature(s)')
       height: 48
       icon.source: QfTheme.getThemeVectorIcon("ic_processing_black_24dp")
-      enabled: toolBar.model && toolBar.model.canProcessSelection && projectInfo.editRights
+      enabled: toolBar.allowProcessing && toolBar.model && toolBar.model.canProcessSelection && projectInfo.editRights
+      visible: enabled
+      height: visible ? 48 : 0
 
       font: QfTheme.defaultFont
       leftPadding: QfTheme.menuItemLeftPadding
@@ -759,7 +762,7 @@ Rectangle {
       id: processFeatureButton
       text: qsTr('Process Feature')
       icon.source: QfTheme.getThemeVectorIcon("ic_processing_black_24dp")
-      enabled: ((projectInfo.editRights || editButton.isCreatedCloudFeature) && (!selection.focusedLayer || !featureForm.model.featureModel.geometryEditingLocked))
+      enabled: toolBar.allowProcessing && ((projectInfo.editRights || editButton.isCreatedCloudFeature) && (!selection.focusedLayer || !featureForm.model.featureModel.geometryEditingLocked))
       visible: enabled
 
       font: QfTheme.defaultFont
