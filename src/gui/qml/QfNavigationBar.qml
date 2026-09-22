@@ -605,7 +605,6 @@ Rectangle {
     MenuItem {
       id: processingSelectedFeaturesBtn
       text: qsTr('Process Selected Feature(s)')
-      height: 48
       icon.source: QfTheme.getThemeVectorIcon("ic_processing_black_24dp")
       enabled: toolBar.allowProcessing && toolBar.model && toolBar.model.canProcessSelection && projectInfo.editRights
       visible: enabled
