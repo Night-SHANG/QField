@@ -63,6 +63,11 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('"assetDistance":', self.text)
         self.assertIn('required property int assetDistance', self.text)
 
+    def test_field_capture_surfaces_accuracy_warning(self) -> None:
+        self.assertIn("accuracyWarningMeters: 15", self.text)
+        self.assertIn("精度 ±", self.text)
+        self.assertIn("建议到开阔位置等待定位稳定后再采点", self.text)
+
     def test_inspection_accuracy_checks_validity(self) -> None:
         self.assertIn("info.haccValid", self.text)
 
