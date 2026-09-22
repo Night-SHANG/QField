@@ -251,27 +251,22 @@ FORM_FIELDS = {
         "active",
     ],
     "assets_point": [
-        "code",
-        "name",
         "asset_type",
-        "status",
-        "pipeline_id",
+        "name",
+        "code",
         "area_name",
         "address_hint",
         "install_date",
-        "last_inspection_at",
         "note",
     ],
     "pipelines": [
-        "code",
         "name",
-        "pipe_type",
-        "material",
+        "code",
         "diameter_mm",
+        "material",
+        "pipe_type",
         "pressure_zone",
-        "status",
         "install_date",
-        "last_inspection_at",
         "note",
     ],
     "inspections": [
@@ -296,19 +291,25 @@ FORM_FIELDS = {
     ],
 }
 
-# Relations embedded in each parent form.
-FORM_RELATIONS = {
+# Keep field forms focused on the task at hand. Attachments are surfaced
+# separately from history so a field worker can take a photo without digging
+# through inspection/repair history.
+FORM_ATTACHMENT_RELATIONS = {
     "asset_types": [],
-    "assets_point": ["asset_inspections", "asset_repairs", "asset_attachments"],
-    "pipelines": [
-        "pipeline_assets",
-        "pipeline_inspections",
-        "pipeline_repairs",
-        "pipeline_attachments",
-    ],
-    "inspections": ["inspection_repairs", "inspection_attachments"],
+    "assets_point": ["asset_attachments"],
+    "pipelines": ["pipeline_attachments"],
+    "inspections": ["inspection_attachments"],
     "attachments": [],
     "repairs": ["repair_attachments"],
+}
+
+FORM_HISTORY_RELATIONS = {
+    "asset_types": [],
+    "assets_point": ["asset_inspections", "asset_repairs"],
+    "pipelines": ["pipeline_assets", "pipeline_inspections", "pipeline_repairs"],
+    "inspections": ["inspection_repairs"],
+    "attachments": [],
+    "repairs": [],
 }
 
 ATTACHMENT_BASE_CONFIG = {
