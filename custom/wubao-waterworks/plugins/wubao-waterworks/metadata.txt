@@ -1,4 +1,4 @@
 [general]
-name=吴堡供水巡检
-description=吴堡县自来水管网点位、定位与现场巡检入口
+name=供水巡检
+description=供水管网点位、定位与现场巡检入口
 author=Night-SHANG
