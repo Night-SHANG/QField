@@ -211,6 +211,29 @@ def configure_map_style(api, layers):
     layers["pipelines"].renderer().setSymbol(pipeline_symbol)
 
 
+def add_offline_basemap(api, project, path: Path):
+    QgsRasterLayer = api["QgsRasterLayer"]
+
+    path = path.resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Offline basemap not found: {path}")
+
+    suffix = path.suffix.lower()
+    if suffix not in profile.SUPPORTED_OFFLINE_BASEMAP_EXTENSIONS:
+        raise ValueError(
+            f"Unsupported offline basemap extension: {suffix}. "
+            f"Supported: {sorted(profile.SUPPORTED_OFFLINE_BASEMAP_EXTENSIONS)}"
+        )
+
+    layer = QgsRasterLayer(str(path), f"离线底图 · {path.stem}", "gdal")
+    if not layer.isValid():
+        raise RuntimeError(f"Unable to load offline basemap: {path}")
+
+    project.addMapLayer(layer, False)
+    project.layerTreeRoot().addLayer(layer)
+    return layer
+
+
 def configure_fields(api, layers):
     QgsDefaultValue = api["QgsDefaultValue"]
     QgsEditorWidgetSetup = api["QgsEditorWidgetSetup"]
@@ -341,6 +364,7 @@ def build_project(
     output: Path,
     *,
     tianditu_token: str | None = None,
+    offline_basemaps: list[Path] | None = None,
 ) -> Path:
     api = require_qgis()
     QgsApplication = api["QgsApplication"]
@@ -361,6 +385,8 @@ def build_project(
 
         layers = load_layers(api, project, geopackage.resolve())
         add_tianditu_imagery(api, project, tianditu_token)
+        for offline_basemap in offline_basemaps or []:
+            add_offline_basemap(api, project, offline_basemap)
         configure_fields(api, layers)
         configure_map_style(api, layers)
         relations = configure_relations(api, project, layers)
@@ -391,6 +417,15 @@ def main() -> int:
         default=Path("wubao-waterworks.qgs"),
     )
     parser.add_argument(
+        "--offline-basemap",
+        action="append",
+        default=[],
+        type=Path,
+        help=(
+            "local MBTiles/GeoTIFF/COG basemap; may be supplied more than once"
+        ),
+    )
+    parser.add_argument(
         "--tianditu-token",
         default=None,
         help=(
@@ -408,6 +443,7 @@ def main() -> int:
             args.geopackage,
             args.output,
             tianditu_token=args.tianditu_token,
+            offline_basemaps=args.offline_basemap,
         )
     )
     return 0
