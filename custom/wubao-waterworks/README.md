@@ -1,11 +1,10 @@
-# 吴堡供水巡检
+# 供水巡检
 
-本目录保存基于 QField 的吴堡县自来水巡检专用层。目标是尽量不修改 QField 核心，通过构建参数、主题、内置插件和 QGIS 项目配置实现业务定制。
+本目录保存基于 QField 的供水巡检专用层。目标是尽量不修改 QField 核心，通过构建参数、主题、内置插件和 QGIS 项目配置实现业务定制。
 
 ## 已确定的基础方案
 
 - 上游：QField
-- 业务区域：陕西省榆林市吴堡县
 - 主底图：天地图·陕西（标准地图 + 影像）
 - 管网主数据：标准 GIS 数据，禁止将 GCJ-02 / BD-09 作为主数据坐标
 - 本地离线：GeoPackage / MBTiles / COG
@@ -17,8 +16,8 @@
 
 专用构建使用以下参数：
 
-- APP_NAME=吴堡供水巡检
-- APP_PACKAGE_NAME=wubao_waterworks
+- APP_NAME=供水巡检
+- APP_PACKAGE_NAME=waterworks_inspection
 - APP_THEME_PATH=custom/wubao-waterworks/theme.json
 - APP_BUNDLED_PLUGINS=custom/wubao-waterworks/plugins
 
@@ -28,7 +27,7 @@ Android CI 使用仓库中的 `.github/workflows/wubao-android.yml`。
 
 1. 完成专用应用壳和内置插件。
 2. 建立点位、管线、巡检、附件的数据模型。
-3. 接入天地图·陕西在线底图，并准备吴堡县离线地图包方案。
+3. 接入天地图·陕西在线底图，并准备现场区域离线地图包方案。
 4. 建立现场检修主流程：查找点位 → 导航/定位 → 查看历史照片 → 记录巡检 → 添加附件。
 5. 保持与 QField master 的可持续同步。
 
@@ -50,14 +49,14 @@ Android CI 使用仓库中的 `.github/workflows/wubao-android.yml`。
 数据文件可单独生成：
 
 ```bash
-python custom/wubao-waterworks/tools/create_geopackage.py ./wubao-waterworks.gpkg
+python custom/wubao-waterworks/tools/create_geopackage.py ./waterworks-inspection.gpkg
 ```
 
 完整项目包需要在能够导入 PyQGIS 的 QGIS Python 环境运行：
 
 ```bash
 export TDT_SHAANXI_TOKEN='<你的授权 Token>'
-python custom/wubao-waterworks/tools/build_project_bundle.py ./WubaoWaterworks
+python custom/wubao-waterworks/tools/build_project_bundle.py ./WaterworksInspection
 ```
 
 也可以追加一个或多个离线底图：
@@ -65,7 +64,7 @@ python custom/wubao-waterworks/tools/build_project_bundle.py ./WubaoWaterworks
 ```bash
 python custom/wubao-waterworks/tools/build_project_bundle.py \
   ./WubaoWaterworks \
-  --offline-basemap ./wubao.mbtiles \
+  --offline-basemap ./site.mbtiles \
   --offline-basemap ./local-imagery.tif
 ```
 
@@ -80,8 +79,8 @@ python custom/wubao-waterworks/tools/build_project_bundle.py \
 
 为避免每次业务提交都触发 QField 全平台构建，开发阶段采用两级检查：
 
-- 日常提交到 `feature/wubao-waterworks`：只运行轻量 `吴堡供水巡检 Preflight`，检查 Python 语法、业务测试、主题 JSON 和专用层结构。
-- `吴堡供水巡检 Android` 完整 APK：仅通过手动 `workflow_dispatch` 触发，用于阶段性真机包。
+- 日常提交到 `feature/wubao-waterworks`：只运行轻量 `供水巡检 Preflight`，检查 Python 语法、业务测试、主题 JSON 和专用层结构。
+- `供水巡检 Android` 完整 APK：仅通过手动 `workflow_dispatch` 触发，用于阶段性真机包。
 - QField 原生 Android / Linux / Windows / macOS / iOS / CodeQL 等完整矩阵：仅在阶段性 PR 或合并前运行，不把长期开发 PR 保持为开启状态。
 
 这样普通功能开发不会重复消耗完整编译时间，同时仍保留阶段性全量回归能力。
