@@ -206,3 +206,35 @@ ATTACHMENT_CONFIG = {
     "DocumentViewerWidth": 0,
     "DocumentViewerHeight": 0,
 }
+
+
+ASSET_SYMBOLS = {
+    "valve_well": {"label": "阀门井", "shape": "circle", "color": "#1976D2", "size": "4.6"},
+    "valve": {"label": "阀门", "shape": "diamond", "color": "#1565C0", "size": "4.4"},
+    "pressure_gauge": {"label": "压力表", "shape": "triangle", "color": "#7B1FA2", "size": "4.6"},
+    "hydrant": {"label": "消防栓", "shape": "square", "color": "#D32F2F", "size": "4.6"},
+    "air_valve": {"label": "排气阀", "shape": "triangle", "color": "#00897B", "size": "4.4"},
+    "drain_valve": {"label": "排泥阀", "shape": "diamond", "color": "#6D4C41", "size": "4.4"},
+    "meter": {"label": "水表", "shape": "circle", "color": "#3949AB", "size": "4.2"},
+    "other": {"label": "其他", "shape": "circle", "color": "#607D8B", "size": "4.0"},
+}
+
+STATUS_STROKE_COLORS = {
+    "normal": "#2E7D32",
+    "attention": "#F9A825",
+    "repair": "#C62828",
+    "disabled": "#616161",
+}
+
+PIPELINE_STYLE = {
+    "color": "#00ACC1",
+    "width": "1.1",
+}
+
+ASSET_LABEL_EXPRESSION = """CASE
+WHEN coalesce("name", '') <> '' THEN "name"
+WHEN coalesce("code", '') <> '' THEN "code"
+ELSE '未命名点位'
+END"""
+
+ASSET_LABEL_MIN_SCALE = 12000
