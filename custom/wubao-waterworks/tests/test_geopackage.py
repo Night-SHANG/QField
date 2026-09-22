@@ -148,6 +148,74 @@ class GeoPackageSchemaTests(unittest.TestCase):
             }.issubset(columns)
         )
 
+    def test_invalid_domain_values_are_rejected(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    "INSERT INTO assets_point(name, asset_type) VALUES (?, ?)",
+                    ("非法类型", "unknown_type"),
+                )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    "INSERT INTO pipelines(name, status) VALUES (?, ?)",
+                    ("非法状态", "unknown_status"),
+                )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO inspections(asset_id, result)
+                    VALUES ('asset-x', 'unknown_result')
+                    """
+                )
+
+    def test_latest_inspection_time_is_maintained(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "44444444-4444-4444-4444-444444444444"
+            db.execute(
+                "INSERT INTO assets_point(id, name) VALUES (?, ?)",
+                (asset_id, "巡检时间测试"),
+            )
+            db.execute(
+                """
+                INSERT INTO inspections(id, asset_id, inspected_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    "55555555-5555-5555-5555-555555555555",
+                    asset_id,
+                    "2026-09-20 08:00:00",
+                ),
+            )
+            db.execute(
+                """
+                INSERT INTO inspections(id, asset_id, inspected_at)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    "66666666-6666-6666-6666-666666666666",
+                    asset_id,
+                    "2026-09-22 10:00:00",
+                ),
+            )
+
+            latest = db.execute(
+                "SELECT last_inspection_at FROM assets_point WHERE id=?",
+                (asset_id,),
+            ).fetchone()[0]
+            self.assertEqual(latest, "2026-09-22 10:00:00")
+
+            db.execute(
+                "DELETE FROM inspections WHERE id=?",
+                ("66666666-6666-6666-6666-666666666666",),
+            )
+            latest = db.execute(
+                "SELECT last_inspection_at FROM assets_point WHERE id=?",
+                (asset_id,),
+            ).fetchone()[0]
+            self.assertEqual(latest, "2026-09-20 08:00:00")
+
     def test_history_tables_are_not_delete_cascaded(self) -> None:
         with sqlite3.connect(self.path) as db:
             asset_id = "11111111-1111-1111-1111-111111111111"
