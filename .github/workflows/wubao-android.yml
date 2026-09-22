@@ -53,6 +53,8 @@ jobs:
 
           python3 -m json.tool custom/wubao-waterworks/theme.json >/dev/null || failures=$((failures + 1))
 
+          python3 -m unittest discover -s custom/wubao-waterworks/tests -p 'test_*.py' || failures=$((failures + 1))
+
           grep -q 'objectName: "wubaoWaterworksPlugin"' custom/wubao-waterworks/plugins/wubao-waterworks/main.qml || {
             echo "::error::Waterworks plugin root object is missing"
             failures=$((failures + 1))
