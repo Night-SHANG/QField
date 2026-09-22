@@ -425,6 +425,39 @@ void QfLayerUtils::selectFeaturesInLayer( QgsVectorLayer *layer, const QList<int
   layer->selectByIds( qgsFids, behavior );
 }
 
+int QfLayerUtils::selectFeaturesByExpression( QgsVectorLayer *layer, const QString &expression )
+{
+  if ( !layer )
+  {
+    return 0;
+  }
+
+  QgsFeatureRequest request;
+  if ( !expression.trimmed().isEmpty() )
+  {
+    request.setFilterExpression( expression );
+  }
+
+  QgsFeatureIds ids;
+  QgsFeatureIterator iterator = layer->getFeatures( request );
+  QgsFeature feature;
+  while ( iterator.nextFeature( feature ) )
+  {
+    ids.insert( feature.id() );
+  }
+
+  layer->selectByIds( ids, Qgis::SelectBehavior::SetSelection );
+  return ids.size();
+}
+
+void QfLayerUtils::clearLayerSelection( QgsVectorLayer *layer )
+{
+  if ( layer )
+  {
+    layer->removeSelection();
+  }
+}
+
 QString QfLayerUtils::fieldType( const QgsField &field )
 {
   return QVariant( QMetaType( field.type() ) ).typeName();
