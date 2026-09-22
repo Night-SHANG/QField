@@ -65,8 +65,28 @@ class ProjectProfileTests(unittest.TestCase):
         self.assertIn('"name"', profile.ASSET_LABEL_EXPRESSION)
         self.assertIn('"code"', profile.ASSET_LABEL_EXPRESSION)
 
-    def test_attachment_widget_uses_relative_storage(self) -> None:
-        self.assertEqual(profile.ATTACHMENT_CONFIG["RelativeStorage"], 1)
+    def test_attachment_widgets_use_relative_storage(self) -> None:
+        self.assertEqual(
+            set(profile.ATTACHMENT_CONFIGS),
+            {"photo_path", "video_path", "audio_path", "document_path"},
+        )
+        for config in profile.ATTACHMENT_CONFIGS.values():
+            self.assertEqual(config["RelativeStorage"], 1)
+
+    def test_attachment_viewers_cover_native_capture_modes(self) -> None:
+        viewers = {
+            field: config["DocumentViewer"]
+            for field, config in profile.ATTACHMENT_CONFIGS.items()
+        }
+        self.assertEqual(
+            viewers,
+            {
+                "photo_path": 1,
+                "video_path": 4,
+                "audio_path": 3,
+                "document_path": 0,
+            },
+        )
 
 
 if __name__ == "__main__":
