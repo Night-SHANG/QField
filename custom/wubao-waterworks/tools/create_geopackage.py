@@ -15,7 +15,7 @@ from pathlib import Path
 # GeoPackage SQLite application id ("GP10").
 APPLICATION_ID = 1196437808
 USER_VERSION = 10300
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 
 UUID_SQL = """(
   lower(hex(randomblob(4))) || '-' ||
@@ -177,8 +177,10 @@ CREATE TABLE attachments (
   inspection_id TEXT,
   repair_id TEXT,
 
-  -- One table implements all media. Dedicated fields let QField expose its
-  -- native camera, video, microphone and file-picker controls.
+  -- One table implements all media. media_type drives conditional form
+  -- visibility while dedicated fields expose QField's native capture controls.
+  media_type TEXT NOT NULL DEFAULT 'photo'
+    CHECK (media_type IN ('photo', 'video', 'audio', 'document')),
   photo_path TEXT,
   video_path TEXT,
   audio_path TEXT,
@@ -198,6 +200,12 @@ CREATE TABLE attachments (
     (video_path IS NOT NULL AND trim(video_path) <> '') +
     (audio_path IS NOT NULL AND trim(audio_path) <> '') +
     (document_path IS NOT NULL AND trim(document_path) <> '') = 1
+  ),
+  CONSTRAINT ck_attachment_media_matches_type CHECK (
+    (media_type = 'photo' AND photo_path IS NOT NULL AND trim(photo_path) <> '') OR
+    (media_type = 'video' AND video_path IS NOT NULL AND trim(video_path) <> '') OR
+    (media_type = 'audio' AND audio_path IS NOT NULL AND trim(audio_path) <> '') OR
+    (media_type = 'document' AND document_path IS NOT NULL AND trim(document_path) <> '')
   )
 );
 
