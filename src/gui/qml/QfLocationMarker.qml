@@ -14,6 +14,9 @@ Item {
   /// type:QgsPoint
   property variant location
 
+  // Specialized shells may hide the visual marker without stopping GNSS.
+  property bool userVisible: true
+
   property point screenLocation
   property real screenAccuracy
   readonly property bool isOnMapCanvas: screenLocation.x > 0 && screenLocation.x < mapCanvas.width && screenLocation.y > 0 && screenLocation.y < mapCanvas.height
