@@ -1296,6 +1296,7 @@ Item {
       mainWindow.displayToast("无法确定附件所属对象");
       return;
     }
+    closeTransientPanels();
     attachmentObjectId = objectId;
     attachmentObjectKind = objectKind;
     loadAttachments(objectId, objectKind);
@@ -1928,7 +1929,7 @@ Item {
 
           Button {
             Layout.fillWidth: true
-            text: "照片/附件"
+            text: "附件"
             onClicked: plugin.openAttachmentPanel(assetId, objectKind)
           }
 
