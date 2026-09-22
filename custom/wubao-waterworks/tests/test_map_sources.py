@@ -4,7 +4,6 @@ import importlib.util
 import unittest
 from pathlib import Path
 
-
 SOURCE_PATH = Path(__file__).resolve().parents[1] / "tools" / "map_sources.py"
 spec = importlib.util.spec_from_file_location("map_sources", SOURCE_PATH)
 map_sources = importlib.util.module_from_spec(spec)
