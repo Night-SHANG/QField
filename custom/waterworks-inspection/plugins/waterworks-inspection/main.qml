@@ -1189,6 +1189,230 @@ Item {
     }
   }
 
+  function parentExpression(objectId, objectKind) {
+    const fieldName = objectKind === "pipeline" ? "pipeline_id" : "asset_id";
+    return "\"" + fieldName + "\" = '" + escapeExpressionString(objectId) + "'";
+  }
+
+  function countMatches(layer, expression) {
+    if (!layer) {
+      return 0;
+    }
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
+    let count = 0;
+    while (iterator.hasNext()) {
+      iterator.next();
+      count++;
+    }
+    iterator.close();
+    return count;
+  }
+
+  function attachmentRelativePath(feature) {
+    const mediaType = String(feature.attribute("media_type") || "");
+    const fieldName = mediaType === "video" ? "video_path" :
+                      mediaType === "audio" ? "audio_path" :
+                      mediaType === "document" ? "document_path" : "photo_path";
+    const value = feature.attribute(fieldName);
+    return value === null || value === undefined ? "" : String(value);
+  }
+
+  function attachmentAbsolutePath(relativePath) {
+    const value = String(relativePath || "");
+    if (!value) {
+      return "";
+    }
+    if (!QfUrlUtils.isRelativeOrFileUrl(value) || value.indexOf("file://") === 0) {
+      return QfUrlUtils.toLocalFile(value);
+    }
+    return qgisProject.homePath + "/" + value;
+  }
+
+  function attachmentUrl(relativePath) {
+    const path = attachmentAbsolutePath(relativePath);
+    return path ? QfUrlUtils.fromString(path) : "";
+  }
+
+  function attachmentTypeLabel(mediaType) {
+    switch (String(mediaType || "")) {
+    case "video":
+      return "视频";
+    case "audio":
+      return "录音";
+    case "document":
+      return "文档";
+    default:
+      return "照片";
+    }
+  }
+
+  function loadAttachments(objectId, objectKind) {
+    attachmentItems.clear();
+    const layer = attachmentLayer();
+    if (!layer || !objectId) {
+      return;
+    }
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, parentExpression(objectId, objectKind));
+    while (iterator.hasNext()) {
+      const feature = iterator.next();
+      const mediaType = String(feature.attribute("media_type") || "photo");
+      const relativePath = attachmentRelativePath(feature);
+      const caption = feature.attribute("caption");
+      const capturedAt = feature.attribute("captured_at");
+      attachmentItems.append({
+        "attachmentId": String(feature.attribute("id") || ""),
+        "mediaType": mediaType,
+        "relativePath": relativePath,
+        "caption": caption === null || caption === undefined ? "" : String(caption),
+        "capturedAt": capturedAt === null || capturedAt === undefined ? "" : String(capturedAt)
+      });
+    }
+    iterator.close();
+  }
+
+  function openAttachmentPanel(objectId, objectKind) {
+    if (!objectId) {
+      mainWindow.displayToast("无法确定附件所属对象");
+      return;
+    }
+    attachmentObjectId = objectId;
+    attachmentObjectKind = objectKind;
+    loadAttachments(objectId, objectKind);
+    attachmentDrawer.open();
+  }
+
+  function configureAttachmentCaptureMode(mediaType) {
+    const layer = attachmentLayer();
+    if (!layer) {
+      return;
+    }
+    const configs = {
+      "photo": ["photo_path", 1],
+      "video": ["video_path", 4],
+      "audio": ["audio_path", 3],
+      "document": ["document_path", 0]
+    };
+    const selected = configs[mediaType] || configs["photo"];
+    const baseConfig = {"StorageMode":0,"RelativeStorage":1,"UseLink":false,"FullUrl":false,"DocumentViewerWidth":0,"DocumentViewerHeight":0};
+    const fields = [
+      ["photo_path", 1],
+      ["video_path", 4],
+      ["audio_path", 3],
+      ["document_path", 0]
+    ];
+    QfLayerUtils.configureField(layer, "media_type", "", "Hidden", {});
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i][0];
+      if (field === selected[0]) {
+        const config = {
+          "StorageMode": baseConfig.StorageMode,
+          "RelativeStorage": baseConfig.RelativeStorage,
+          "UseLink": baseConfig.UseLink,
+          "FullUrl": baseConfig.FullUrl,
+          "DocumentViewerWidth": baseConfig.DocumentViewerWidth,
+          "DocumentViewerHeight": baseConfig.DocumentViewerHeight,
+          "DocumentViewer": fields[i][1]
+        };
+        QfLayerUtils.configureField(layer, field, "", "ExternalResource", config);
+      } else {
+        QfLayerUtils.configureField(layer, field, "", "Hidden", {});
+      }
+    }
+  }
+
+  function requestDeleteBusinessObject(objectId, objectKind) {
+    if (!editAllowed("删除")) {
+      return;
+    }
+    const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
+    const feature = featureForObjectId(objectKind, objectId);
+    if (!layer || !feature) {
+      mainWindow.displayToast("无法找到要删除的对象");
+      return;
+    }
+
+    const parentExpr = parentExpression(objectId, objectKind);
+    const hasInspection = countMatches(inspectionLayer(), parentExpr) > 0;
+    const hasRepair = countMatches(repairLayer(), parentExpr) > 0;
+    const hasLinkedAssets = objectKind === "pipeline" &&
+      countMatches(assetLayer(), "\"pipeline_id\" = '" + escapeExpressionString(objectId) + "'") > 0;
+
+    if (hasInspection || hasRepair || hasLinkedAssets) {
+      const reason = hasLinkedAssets ? "该管线仍有关联点位" : "该对象已经有巡检或维修历史";
+      mainWindow.displayToast(reason + "，不能直接删除；如已停用，请在编辑中把状态改为“停用”");
+      return;
+    }
+
+    pendingDeleteObjectId = objectId;
+    pendingDeleteObjectKind = objectKind;
+    pendingDeleteAttachmentCount = countMatches(attachmentLayer(), parentExpr);
+    const nameValue = feature.attribute("name");
+    const codeValue = feature.attribute("code");
+    pendingDeleteObjectName = String(nameValue || codeValue || (objectKind === "pipeline" ? "该管线" : "该点位"));
+    deleteObjectDialog.open();
+  }
+
+  function confirmDeleteBusinessObject() {
+    const objectId = pendingDeleteObjectId;
+    const objectKind = pendingDeleteObjectKind;
+    const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
+    const attachments = attachmentLayer();
+    if (!objectId || !layer) {
+      deleteObjectDialog.close();
+      return;
+    }
+
+    const parentExpr = parentExpression(objectId, objectKind);
+    const files = [];
+    if (attachments) {
+      const iterator = QfLayerUtils.createFeatureIteratorFromExpression(attachments, parentExpr);
+      while (iterator.hasNext()) {
+        const path = attachmentRelativePath(iterator.next());
+        if (path) {
+          files.push(attachmentAbsolutePath(path));
+        }
+      }
+      iterator.close();
+
+      if (QfLayerUtils.deleteFeaturesByExpression(qgisProject, attachments, parentExpr) < 0) {
+        mainWindow.displayToast("删除附件记录失败，点位未删除");
+        deleteObjectDialog.close();
+        return;
+      }
+    }
+
+    const deleted = QfLayerUtils.deleteFeaturesByExpression(
+      qgisProject,
+      layer,
+      "\"id\" = '" + escapeExpressionString(objectId) + "'"
+    );
+    if (deleted !== 1) {
+      mainWindow.displayToast("删除失败，数据仍保留");
+      deleteObjectDialog.close();
+      return;
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      if (files[i] && QfFileUtils.fileExists(files[i])) {
+        platformUtilities.rmFile(files[i]);
+      }
+    }
+
+    QfLayerUtils.triggerLayerRepaint(layer);
+    if (attachments) {
+      QfLayerUtils.triggerLayerRepaint(attachments);
+    }
+    if (featureForm) {
+      featureForm.state = "Hidden";
+    }
+    deleteObjectDialog.close();
+    mainWindow.displayToast(objectKind === "pipeline" ? "管线已删除" : "点位已删除");
+    pendingDeleteObjectId = "";
+    pendingDeleteObjectKind = "";
+    pendingDeleteObjectName = "";
+    pendingDeleteAttachmentCount = 0;
+  }
+
   function createInspection(objectId, objectKind) {
     if (!editAllowed("巡检记录")) {
       return;
@@ -1219,6 +1443,8 @@ Item {
       }
     }
 
+    overlayFeatureFormDrawer.featureModel.currentLayer = layer;
+    overlayFeatureFormDrawer.featureModel.currentLayer = layer;
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
     closeTransientPanels();
@@ -1252,7 +1478,7 @@ Item {
     overlayFeatureFormDrawer.open();
   }
 
-  function createAttachment(objectId, objectKind) {
+  function createAttachment(objectId, objectKind, mediaType) {
     if (!editAllowed("添加附件")) {
       return;
     }
@@ -1270,9 +1496,15 @@ Item {
       return;
     }
 
+    const type = mediaType || "photo";
+    configureAttachmentCaptureMode(type);
     const feature = QfFeatureUtils.createFeature(layer);
     setParentReference(feature, objectId, objectKind);
+    feature.setAttribute("media_type", type);
 
+    pendingAttachmentRefreshId = objectId;
+    pendingAttachmentRefreshKind = objectKind;
+    overlayFeatureFormDrawer.featureModel.currentLayer = layer;
     overlayFeatureFormDrawer.featureModel.feature = feature;
     overlayFeatureFormDrawer.state = "Add";
     closeTransientPanels();
