@@ -27,7 +27,6 @@ Item {
   readonly property var repairLayerNames: ["维修记录", "repairs"]
   readonly property var attachmentLayerNames: ["附件", "attachments"]
   property bool searchBusy: false
-  property bool searchPanelVisible: false
   property string queryMode: "search"
   property string queryObjectKind: "asset"
   property bool queryFiltersExpanded: false
@@ -1497,7 +1496,7 @@ Item {
       required property string assetDetail
       required property int assetDistance
 
-      width: ListView.view ? ListView.view.width : 0
+      width: queryResultsView.width
       height: resultColumn.implicitHeight + 20
       radius: 10
       color: QfTheme.groupBoxBackgroundColor
@@ -1745,8 +1744,7 @@ Item {
         Button {
           Layout.fillWidth: true
           text: "点位"
-          checkable: true
-          checked: plugin.queryObjectKind === "asset"
+          font.bold: plugin.queryObjectKind === "asset"
           onClicked: {
             plugin.queryObjectKind = "asset";
             assetSearchResults.clear();
@@ -1760,8 +1758,7 @@ Item {
         Button {
           Layout.fillWidth: true
           text: "管线"
-          checkable: true
-          checked: plugin.queryObjectKind === "pipeline"
+          font.bold: plugin.queryObjectKind === "pipeline"
           onClicked: {
             plugin.queryObjectKind = "pipeline";
             assetSearchResults.clear();
