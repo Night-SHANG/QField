@@ -1,5 +1,5 @@
 ---
-name: 🚰 吴堡供水巡检 Preflight
+name: 🚰 供水巡检 Preflight
 
 on:
   push:
