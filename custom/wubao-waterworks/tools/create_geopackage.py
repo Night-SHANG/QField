@@ -99,8 +99,15 @@ CREATE TABLE assets_point (
   id TEXT NOT NULL UNIQUE DEFAULT {UUID_SQL},
   code TEXT,
   name TEXT,
-  asset_type TEXT NOT NULL DEFAULT 'other',
-  status TEXT NOT NULL DEFAULT 'normal',
+  asset_type TEXT NOT NULL DEFAULT 'other'
+    CHECK (
+      asset_type IN (
+        'valve_well', 'valve', 'pressure_gauge', 'hydrant',
+        'air_valve', 'drain_valve', 'meter', 'other'
+      )
+    ),
+  status TEXT NOT NULL DEFAULT 'normal'
+    CHECK (status IN ('normal', 'attention', 'repair', 'disabled')),
   pipeline_id TEXT,
   area_name TEXT,
   address_hint TEXT,
@@ -121,7 +128,8 @@ CREATE TABLE pipelines (
   material TEXT,
   diameter_mm REAL,
   pressure_zone TEXT,
-  status TEXT NOT NULL DEFAULT 'normal',
+  status TEXT NOT NULL DEFAULT 'normal'
+    CHECK (status IN ('normal', 'attention', 'repair', 'disabled')),
   install_date DATE,
   note TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -134,7 +142,8 @@ CREATE TABLE inspections (
   asset_id TEXT NOT NULL,
   inspected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   inspector TEXT,
-  result TEXT NOT NULL DEFAULT 'normal',
+  result TEXT NOT NULL DEFAULT 'normal'
+    CHECK (result IN ('normal', 'attention', 'repair')),
   pressure_value REAL,
   issue TEXT,
   action_taken TEXT,
@@ -245,6 +254,54 @@ BEGIN
   UPDATE pipelines
   SET updated_at = CURRENT_TIMESTAMP
   WHERE fid = OLD.fid;
+END;
+
+
+CREATE TRIGGER trg_inspection_insert_updates_asset
+AFTER INSERT ON inspections
+FOR EACH ROW
+BEGIN
+  UPDATE assets_point
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE asset_id = NEW.asset_id
+  )
+  WHERE id = NEW.asset_id;
+END;
+
+CREATE TRIGGER trg_inspection_update_updates_asset
+AFTER UPDATE OF asset_id, inspected_at ON inspections
+FOR EACH ROW
+BEGIN
+  UPDATE assets_point
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE asset_id = OLD.asset_id
+  )
+  WHERE id = OLD.asset_id;
+
+  UPDATE assets_point
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE asset_id = NEW.asset_id
+  )
+  WHERE id = NEW.asset_id;
+END;
+
+CREATE TRIGGER trg_inspection_delete_updates_asset
+AFTER DELETE ON inspections
+FOR EACH ROW
+BEGIN
+  UPDATE assets_point
+  SET last_inspection_at = (
+    SELECT MAX(inspected_at)
+    FROM inspections
+    WHERE asset_id = OLD.asset_id
+  )
+  WHERE id = OLD.asset_id;
 END;
 """
 
