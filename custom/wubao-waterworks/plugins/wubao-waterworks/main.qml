@@ -83,6 +83,64 @@ Item {
     return String(value || "").replace(/'/g, "''")
   }
 
+  function selectedAssetType() {
+    if (!assetTypeFilter || assetTypeFilter.currentIndex < 0) {
+      return ""
+    }
+    return assetTypeFilter.model[assetTypeFilter.currentIndex].value
+  }
+
+  function selectedAssetStatus() {
+    if (!assetStatusFilter || assetStatusFilter.currentIndex < 0) {
+      return ""
+    }
+    return assetStatusFilter.model[assetStatusFilter.currentIndex].value
+  }
+
+  function applyAssetFilters(baseExpression) {
+    const clauses = []
+    const base = String(baseExpression || "").trim()
+    if (base.length > 0) {
+      clauses.push("(" + base + ")")
+    }
+
+    const typeValue = selectedAssetType()
+    if (typeValue.length > 0) {
+      clauses.push("\"asset_type\" = '" + escapeExpressionString(typeValue) + "'")
+    }
+
+    const statusValue = selectedAssetStatus()
+    if (statusValue.length > 0) {
+      clauses.push("\"status\" = '" + escapeExpressionString(statusValue) + "'")
+    }
+
+    return clauses.length > 0 ? clauses.join(" AND ") : "1 = 1"
+  }
+
+  function assetTypeLabel(value) {
+    switch (String(value || "")) {
+    case "valve_well": return "阀门井"
+    case "valve": return "阀门"
+    case "pressure_gauge": return "压力表"
+    case "hydrant": return "消防栓"
+    case "air_valve": return "排气阀"
+    case "drain_valve": return "排泥阀"
+    case "meter": return "水表"
+    case "other": return "其他"
+    default: return String(value || "")
+    }
+  }
+
+  function assetStatusLabel(value) {
+    switch (String(value || "")) {
+    case "normal": return "正常"
+    case "attention": return "需关注"
+    case "repair": return "待维修"
+    case "disabled": return "停用"
+    default: return String(value || "")
+    }
+  }
+
   function appendAssetResult(feature, distanceMeters) {
     const idValue = feature.attribute("id")
     const nameValue = feature.attribute("name")
@@ -95,7 +153,10 @@ Item {
       "assetName": nameValue === null || nameValue === undefined || String(nameValue).length === 0 ? "未命名点位" : String(nameValue),
       "assetCode": codeValue === null || codeValue === undefined ? "" : String(codeValue),
       "assetType": typeValue === null || typeValue === undefined ? "" : String(typeValue),
-      "assetStatus": statusValue === null || statusValue === undefined ? "" : String(statusValue)
+      "assetStatus": statusValue === null || statusValue === undefined ? "" : String(statusValue),
+      "assetDistance": distanceMeters === undefined || distanceMeters === null
+        ? -1
+        : Math.max(0, Math.round(Number(distanceMeters)))
     })
   }
 
@@ -109,17 +170,18 @@ Item {
     }
 
     const trimmed = String(term || "").trim()
-    if (trimmed.length === 0) {
-      return
-    }
 
     searchBusy = true
-    const needle = escapeExpressionString(trimmed.toLowerCase())
-    const expression =
-      "lower(coalesce(\"name\", '')) LIKE '%" + needle + "%' OR " +
-      "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " +
-      "lower(coalesce(\"address_hint\", '')) LIKE '%" + needle + "%'"
+    let textExpression = ""
+    if (trimmed.length > 0) {
+      const needle = escapeExpressionString(trimmed.toLowerCase())
+      textExpression =
+        "lower(coalesce(\"name\", '')) LIKE '%" + needle + "%' OR " +
+        "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " +
+        "lower(coalesce(\"address_hint\", '')) LIKE '%" + needle + "%'"
+    }
 
+    const expression = applyAssetFilters(textExpression)
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression)
     let count = 0
 
@@ -127,14 +189,15 @@ Item {
       appendAssetResult(iterator.next())
       count++
     }
+    const hasMore = iterator.hasNext()
     iterator.close()
 
     searchBusy = false
 
     if (count === 0) {
       mainWindow.displayToast("未找到匹配点位")
-    } else if (count === 100 && iterator.hasNext()) {
-      mainWindow.displayToast("结果超过 100 条，请输入更精确的名称或编号")
+    } else if (hasMore) {
+      mainWindow.displayToast("结果超过 100 条，请缩小筛选范围")
     }
   }
 
@@ -168,11 +231,12 @@ Item {
     // CGCS2000/EPSG:4490.
     const lon = Number(info.longitude)
     const lat = Number(info.latitude)
-    const expression =
+    const distanceExpression =
       "distance(" +
       "transform($geometry, 'EPSG:4490', 'EPSG:32649'), " +
       "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', 'EPSG:32649')" +
       ") <= " + radius
+    const expression = applyAssetFilters(distanceExpression)
 
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression)
     const utm49 = QfCoordinateReferenceSystemUtils.fromDescription("EPSG:32649")
@@ -420,6 +484,43 @@ Item {
         spacing: 6
 
         ComboBox {
+          id: assetTypeFilter
+          Layout.fillWidth: true
+          model: [
+            { text: "全部类型", value: "" },
+            { text: "阀门井", value: "valve_well" },
+            { text: "阀门", value: "valve" },
+            { text: "压力表", value: "pressure_gauge" },
+            { text: "消防栓", value: "hydrant" },
+            { text: "排气阀", value: "air_valve" },
+            { text: "排泥阀", value: "drain_valve" },
+            { text: "水表", value: "meter" },
+            { text: "其他", value: "other" }
+          ]
+          textRole: "text"
+          currentIndex: 0
+        }
+
+        ComboBox {
+          id: assetStatusFilter
+          Layout.fillWidth: true
+          model: [
+            { text: "全部状态", value: "" },
+            { text: "正常", value: "normal" },
+            { text: "需关注", value: "attention" },
+            { text: "待维修", value: "repair" },
+            { text: "停用", value: "disabled" }
+          ]
+          textRole: "text"
+          currentIndex: 0
+        }
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: 6
+
+        ComboBox {
           id: nearbyRadiusCombo
           model: [
             { text: "100 m", value: 100 },
@@ -455,7 +556,7 @@ Item {
 
         Button {
           text: searchBusy ? "查询中" : "查询"
-          enabled: !searchBusy && assetSearchField.text.trim().length > 0
+          enabled: !searchBusy
           onClicked: plugin.searchAssets(assetSearchField.text)
         }
       }
@@ -511,8 +612,8 @@ Item {
               Layout.fillWidth: true
               text: (assetDistance >= 0 ? assetDistance + " m  " : "") +
                     (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") +
-                    (assetType.length > 0 ? assetType + "  " : "") +
-                    (assetStatus.length > 0 ? assetStatus : "")
+                    (assetType.length > 0 ? plugin.assetTypeLabel(assetType) + "  " : "") +
+                    (assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : "")
               color: QfTheme.secondaryTextColor
               elide: Text.ElideRight
             }
