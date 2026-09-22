@@ -26,12 +26,108 @@ Item {
   readonly property var repairLayerNames: ["维修记录", "repairs"]
   readonly property var attachmentLayerNames: ["附件", "attachments"]
   property bool searchBusy: false
+  property bool advancedMode: false
+  property bool waterworksProjectReady: false
   property int nearbyRadiusMeters: 500
   property real accuracyWarningMeters: 15
 
   Component.onCompleted: {
     iface.addItemToPluginsToolbar(waterworksButton);
+    refreshProjectState();
+    Qt.callLater(function () {
+      applyWorkerMode(false);
+      if (waterworksProjectReady) {
+        waterworksDialog.open();
+      }
+    });
+  }
+
+  Connections {
+    target: iface
+
+    function onLoadProjectEnded(path, name) {
+      Qt.callLater(function () {
+        refreshProjectState();
+        applyWorkerMode(false);
+        if (waterworksProjectReady) {
+          waterworksDialog.open();
+        }
+      });
+    }
+  }
+
+  function refreshProjectState() {
+    waterworksProjectReady = !!assetLayer() && !!pipelineLayer() && !!inspectionLayer() && !!repairLayer() && !!attachmentLayer();
     loadAssetTypeOptions();
+  }
+
+  function applyWorkerMode(enableAdvanced) {
+    advancedMode = !!enableAdvanced;
+
+    const mainMenuBar = iface.findItemByObjectName("mainMenuBar");
+    const mainToolbar = iface.findItemByObjectName("mainToolbar");
+    const zoomToolbar = iface.findItemByObjectName("zoomToolbar");
+    const locatorItem = iface.findItemByObjectName("locatorItem");
+    const dashBoard = iface.findItemByObjectName("dashBoard");
+    const welcomeCloud = iface.findItemByObjectName("welcomeActionCloud");
+    const welcomeNewProject = iface.findItemByObjectName("welcomeActionNewProject");
+    const welcomeLocalProjects = iface.findItemByObjectName("welcomeActionLocalProjects");
+
+    if (mainMenuBar) {
+      mainMenuBar.visible = advancedMode;
+    }
+    if (mainToolbar) {
+      mainToolbar.visible = advancedMode;
+    }
+    if (zoomToolbar) {
+      zoomToolbar.visible = advancedMode;
+    }
+    if (locatorItem) {
+      locatorItem.visible = advancedMode;
+    }
+    if (!advancedMode && dashBoard && dashBoard.opened) {
+      dashBoard.close();
+    }
+
+    if (welcomeCloud) {
+      welcomeCloud.visible = advancedMode;
+    }
+    if (welcomeNewProject) {
+      welcomeNewProject.visible = advancedMode;
+    }
+    if (welcomeLocalProjects) {
+      welcomeLocalProjects.label = advancedMode ? "本地项目 / 数据" : "打开供水巡检项目";
+    }
+  }
+
+  function chooseWaterworksProject() {
+    waterworksDialog.close();
+    applyWorkerMode(false);
+    iface.clearProject();
+    Qt.callLater(function () {
+      const welcomeScreen = iface.findItemByObjectName("welcomeScreen");
+      if (welcomeScreen) {
+        welcomeScreen.visible = true;
+        welcomeScreen.showLocalDataPicker();
+      }
+    });
+  }
+
+  function centerOnCurrentPosition() {
+    const gnssButton = iface.findItemByObjectName("gnssButton");
+    if (!gnssButton) {
+      mainWindow.displayToast("当前版本无法调用定位按钮");
+      return;
+    }
+
+    waterworksDialog.close();
+    gnssButton.clicked();
+  }
+
+  function loadNearbyKind(objectKind) {
+    searchTargetFilter.currentIndex = objectKind === "pipeline" ? 1 : 0;
+    const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex];
+    loadNearbyObjects(item.value);
   }
 
   function assetTypeLayer() {
