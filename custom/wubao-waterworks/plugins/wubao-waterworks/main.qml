@@ -83,7 +83,7 @@ Item {
     return String(value || "").replace(/'/g, "''")
   }
 
-  function appendAssetResult(feature) {
+  function appendAssetResult(feature, distanceMeters) {
     const idValue = feature.attribute("id")
     const nameValue = feature.attribute("name")
     const codeValue = feature.attribute("code")
@@ -174,19 +174,39 @@ Item {
       ") <= " + radius
 
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression)
-    let count = 0
-    while (iterator.hasNext() && count < 100) {
-      appendAssetResult(iterator.next())
-      count++
+    const utm49 = QfCoordinateReferenceSystemUtils.fromDescription("EPSG:32649")
+    const currentUtm = QfGeometryUtils.reprojectPoint(
+      QfGeometryUtils.point(lon, lat),
+      QfCoordinateReferenceSystemUtils.wgs84Crs(),
+      utm49
+    )
+    const matches = []
+
+    while (iterator.hasNext() && matches.length < 100) {
+      const feature = iterator.next()
+      const center = QfGeometryUtils.centroid(feature.geometry)
+      const centerUtm = QfGeometryUtils.reprojectPoint(center, layer.crs, utm49)
+      const dx = Number(centerUtm.x) - Number(currentUtm.x)
+      const dy = Number(centerUtm.y) - Number(currentUtm.y)
+      matches.push({
+        "feature": feature,
+        "distance": Math.sqrt(dx * dx + dy * dy)
+      })
+    }
+    iterator.close()
+
+    matches.sort((a, b) => a.distance - b.distance)
+    for (let i = 0; i < matches.length; i++) {
+      appendAssetResult(matches[i].feature, matches[i].distance)
     }
 
     searchBusy = false
     assetSearchField.text = ""
 
-    if (count === 0) {
+    if (matches.length === 0) {
       mainWindow.displayToast(radius + " 米内没有点位")
     } else {
-      mainWindow.displayToast("已载入 " + count + " 个附近点位")
+      mainWindow.displayToast("已按距离载入 " + matches.length + " 个附近点位")
     }
   }
 
@@ -459,6 +479,7 @@ Item {
           required property string assetCode
           required property string assetType
           required property string assetStatus
+          required property int assetDistance
 
           width: resultsView.width
           height: resultColumn.implicitHeight + 20
@@ -486,7 +507,8 @@ Item {
 
             Label {
               Layout.fillWidth: true
-              text: (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") +
+              text: (assetDistance >= 0 ? assetDistance + " m  " : "") +
+                    (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") +
                     (assetType.length > 0 ? assetType + "  " : "") +
                     (assetStatus.length > 0 ? assetStatus : "")
               color: QfTheme.secondaryTextColor
