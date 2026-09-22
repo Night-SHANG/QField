@@ -41,14 +41,8 @@ class ProjectProfileTests(unittest.TestCase):
                 f"duplicate stored value in {key}",
             )
 
-    def test_default_view_extent_is_valid(self) -> None:
-        xmin, ymin, xmax, ymax = profile.DEFAULT_VIEW_EXTENT
-        self.assertLess(xmin, xmax)
-        self.assertLess(ymin, ymax)
-        self.assertGreater(xmin, 100)
-        self.assertLess(xmax, 120)
-        self.assertGreater(ymin, 30)
-        self.assertLess(ymax, 45)
+    def test_reusable_profile_does_not_hardcode_a_local_extent(self) -> None:
+        self.assertIsNone(profile.DEFAULT_VIEW_EXTENT)
 
     def test_layer_groups_cover_all_business_layers_once(self) -> None:
         grouped = [
@@ -64,12 +58,12 @@ class ProjectProfileTests(unittest.TestCase):
         }
         self.assertEqual(values, {"resolved", "monitor", "unresolved"})
 
-    def test_every_asset_type_has_a_map_symbol(self) -> None:
-        stored_types = {
-            next(iter(item.values()))
-            for item in profile.VALUE_MAPS[("assets_point", "asset_type")]
-        }
-        self.assertEqual(stored_types, set(profile.ASSET_SYMBOLS))
+    def test_asset_type_uses_data_driven_value_relation(self) -> None:
+        config = profile.VALUE_RELATIONS[("assets_point", "asset_type")]
+        self.assertEqual(config["layer"], "asset_types")
+        self.assertEqual(config["key"], "code")
+        self.assertEqual(config["value"], "label")
+        self.assertNotIn(("assets_point", "asset_type"), profile.VALUE_MAPS)
 
     def test_every_asset_status_has_a_stroke_color(self) -> None:
         stored_statuses = {
