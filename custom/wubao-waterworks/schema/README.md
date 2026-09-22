@@ -71,13 +71,15 @@
 - asset_id: 设施 UUID，可空
 - inspection_id: 巡检 UUID，可空
 - repair_id: 维修 UUID，可空
-- media_type: photo / video / audio / document
-- file_path
+- photo_path: 照片，可空
+- video_path: 视频，可空
+- audio_path: 录音，可空
+- document_path: 文档，可空
 - caption
 - captured_at
 - created_at
 
-三个父级字段必须且只能填写一个。这样同一张附件表既保持统一实现，又能分别建立“设施→附件”“巡检→附件”“维修→附件”的原生关系。
+三个父级字段必须且只能填写一个；四个媒体字段也必须且只能填写一个。这样仍然只有一套附件表和一套关系逻辑，但 QField 可以分别提供原生拍照、录像、录音和文件选择控件。
 
 ## 5. repairs
 
