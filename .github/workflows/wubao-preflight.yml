@@ -30,12 +30,25 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           submodules: false
-      - name: Run all waterworks tests
+      - name: Compile Python and run all waterworks tests
+        shell: bash
         run: |
+          set +e
+
+          python3 -m compileall -q \
+            custom/wubao-waterworks/tools \
+            custom/wubao-waterworks/tests
+          compile_status=$?
+
           python3 -m unittest discover \
             -s custom/wubao-waterworks/tests \
             -p 'test_*.py' \
             -v
+          test_status=$?
+
+          if [[ ${compile_status} -ne 0 || ${test_status} -ne 0 ]]; then
+            exit 1
+          fi
 
   theme-json:
     name: 主题 JSON 检查
