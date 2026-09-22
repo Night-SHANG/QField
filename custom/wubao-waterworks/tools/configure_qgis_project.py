@@ -9,6 +9,7 @@ create_geopackage.py so CI can validate the data schema without QGIS.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import map_sources
@@ -269,6 +270,11 @@ def configure_fields(api, layers):
             field_index(layers["attachments"], field_name),
             QgsEditorWidgetSetup("ExternalResource", config),
         )
+
+    layers["attachments"].setCustomProperty(
+        "QFieldSync/attachment_naming",
+        json.dumps(profile.ATTACHMENT_NAMING, ensure_ascii=False),
+    )
 
 
 def configure_relations(api, project, layers):
