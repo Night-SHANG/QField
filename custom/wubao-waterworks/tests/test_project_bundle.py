@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 TOOLS = Path(__file__).resolve().parents[1] / "tools"
 
 profile_spec = importlib.util.spec_from_file_location(
@@ -19,6 +18,7 @@ profile_spec.loader.exec_module(project_profile)
 # build_project_bundle imports sibling modules by name. Add the tools directory
 # to sys.path exactly as it is when the script is executed directly.
 import sys
+
 sys.path.insert(0, str(TOOLS))
 try:
     bundle_spec = importlib.util.spec_from_file_location(
