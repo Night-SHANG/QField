@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Create the base GeoPackage used by the Wubao waterworks project.
 
-This generator intentionally uses only Python's sqlite3 module so it can run in
-CI without a QGIS/GDAL installation. QGIS/QField-specific forms, relations and
-styling are applied by a separate project profile.
+The file is intentionally generated with Python's sqlite3 module so schema
+checks can run in lightweight CI. QGIS/QField-specific forms, relations,
+renderers and online basemaps are applied by configure_qgis_project.py.
 """
 
 from __future__ import annotations
@@ -12,9 +12,10 @@ import argparse
 import sqlite3
 from pathlib import Path
 
-APPLICATION_ID = 1196437808  # 0x47504B47 = GPKG
-USER_VERSION = 10300  # GeoPackage 1.3.0
-SCHEMA_VERSION = "2"
+# GeoPackage SQLite application id ("GP10").
+APPLICATION_ID = 1196437808
+USER_VERSION = 10300
+SCHEMA_VERSION = "3"
 
 UUID_SQL = """(
   lower(hex(randomblob(4))) || '-' ||
@@ -39,8 +40,10 @@ CREATE TABLE gpkg_spatial_ref_sys (
 );
 
 INSERT INTO gpkg_spatial_ref_sys VALUES
-('Undefined Cartesian SRS',-1,'NONE',-1,'undefined','undefined Cartesian coordinate reference system'),
-('Undefined Geographic SRS',0,'NONE',0,'undefined','undefined geographic coordinate reference system'),
+('Undefined Cartesian SRS',-1,'NONE',-1,'undefined',
+ 'undefined Cartesian coordinate reference system'),
+('Undefined Geographic SRS',0,'NONE',0,'undefined',
+ 'undefined geographic coordinate reference system'),
 ('WGS 84 geodetic',4326,'EPSG',4326,
  'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]',
  'WGS 84 longitude/latitude'),
@@ -53,7 +56,8 @@ CREATE TABLE gpkg_contents (
   data_type TEXT NOT NULL,
   identifier TEXT UNIQUE,
   description TEXT DEFAULT '',
-  last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  last_change DATETIME NOT NULL
+    DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   min_x DOUBLE,
   min_y DOUBLE,
   max_x DOUBLE,
@@ -72,14 +76,17 @@ CREATE TABLE gpkg_geometry_columns (
   m TINYINT NOT NULL,
   CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
   CONSTRAINT uk_gc_table_name UNIQUE (table_name),
-  CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
-  CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+  CONSTRAINT fk_gc_tn
+    FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+  CONSTRAINT fk_gc_srs
+    FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
 );
 
 CREATE TABLE app_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
 INSERT INTO app_metadata VALUES
 ('schema_version','{SCHEMA_VERSION}'),
 ('project_name','吴堡供水巡检'),
@@ -136,18 +143,6 @@ CREATE TABLE inspections (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE attachments (
-  fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-  id TEXT NOT NULL UNIQUE DEFAULT {UUID_SQL},
-  owner_type TEXT NOT NULL,
-  owner_id TEXT NOT NULL,
-  media_type TEXT NOT NULL,
-  file_path TEXT NOT NULL,
-  caption TEXT,
-  captured_at DATETIME,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE repairs (
   fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   id TEXT NOT NULL UNIQUE DEFAULT {UUID_SQL},
@@ -162,13 +157,50 @@ CREATE TABLE repairs (
   note TEXT
 );
 
+CREATE TABLE attachments (
+  fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  id TEXT NOT NULL UNIQUE DEFAULT {UUID_SQL},
+
+  -- Exactly one parent is populated. We deliberately do not use ON DELETE
+  -- CASCADE: historical media must survive accidental/administrative changes.
+  asset_id TEXT,
+  inspection_id TEXT,
+  repair_id TEXT,
+
+  -- One table implements all media. Dedicated fields let QField expose its
+  -- native camera, video, microphone and file-picker controls.
+  photo_path TEXT,
+  video_path TEXT,
+  audio_path TEXT,
+  document_path TEXT,
+
+  caption TEXT,
+  captured_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT ck_attachment_one_parent CHECK (
+    (asset_id IS NOT NULL) +
+    (inspection_id IS NOT NULL) +
+    (repair_id IS NOT NULL) = 1
+  ),
+  CONSTRAINT ck_attachment_one_media CHECK (
+    (photo_path IS NOT NULL AND trim(photo_path) <> '') +
+    (video_path IS NOT NULL AND trim(video_path) <> '') +
+    (audio_path IS NOT NULL AND trim(audio_path) <> '') +
+    (document_path IS NOT NULL AND trim(document_path) <> '') = 1
+  )
+);
+
 INSERT INTO gpkg_contents(table_name,data_type,identifier,description,srs_id)
 VALUES
-('assets_point','features','供水设施','阀门井、阀门、压力表、消防栓等点状供水设施',4490),
-('pipelines','features','供水管线','供水主管、支管等线状设施',4490),
+('assets_point','features','供水设施',
+ '阀门井、阀门、压力表、消防栓等点状供水设施',4490),
+('pipelines','features','供水管线',
+ '供水主管、支管等线状设施',4490),
 ('inspections','attributes','巡检记录','设施巡检历史',NULL),
-('attachments','attributes','附件','照片、视频、音频和文档附件索引',NULL),
-('repairs','attributes','维修记录','设施维修历史',NULL);
+('repairs','attributes','维修记录','设施维修历史',NULL),
+('attachments','attributes','附件',
+ '照片、视频、音频和文档附件',NULL);
 
 INSERT INTO gpkg_geometry_columns VALUES
 ('assets_point','geom','POINT',4490,0,0),
@@ -180,22 +212,29 @@ CREATE INDEX idx_assets_point_name ON assets_point(name);
 CREATE INDEX idx_assets_point_type ON assets_point(asset_type);
 CREATE INDEX idx_assets_point_status ON assets_point(status);
 CREATE INDEX idx_assets_point_pipeline ON assets_point(pipeline_id);
+
 CREATE INDEX idx_pipelines_id ON pipelines(id);
 CREATE INDEX idx_pipelines_code ON pipelines(code);
+CREATE INDEX idx_pipelines_status ON pipelines(status);
+
 CREATE INDEX idx_inspections_asset ON inspections(asset_id);
 CREATE INDEX idx_inspections_time ON inspections(inspected_at);
+
+CREATE INDEX idx_repairs_asset ON repairs(asset_id);
+CREATE INDEX idx_repairs_inspection ON repairs(inspection_id);
+
 CREATE INDEX idx_attachments_asset ON attachments(asset_id);
 CREATE INDEX idx_attachments_inspection ON attachments(inspection_id);
 CREATE INDEX idx_attachments_repair ON attachments(repair_id);
-CREATE INDEX idx_repairs_asset ON repairs(asset_id);
-CREATE INDEX idx_repairs_inspection ON repairs(inspection_id);
 
 CREATE TRIGGER trg_assets_updated_at
 AFTER UPDATE ON assets_point
 FOR EACH ROW
 WHEN NEW.updated_at = OLD.updated_at
 BEGIN
-  UPDATE assets_point SET updated_at=CURRENT_TIMESTAMP WHERE fid=OLD.fid;
+  UPDATE assets_point
+  SET updated_at = CURRENT_TIMESTAMP
+  WHERE fid = OLD.fid;
 END;
 
 CREATE TRIGGER trg_pipelines_updated_at
@@ -203,7 +242,9 @@ AFTER UPDATE ON pipelines
 FOR EACH ROW
 WHEN NEW.updated_at = OLD.updated_at
 BEGIN
-  UPDATE pipelines SET updated_at=CURRENT_TIMESTAMP WHERE fid=OLD.fid;
+  UPDATE pipelines
+  SET updated_at = CURRENT_TIMESTAMP
+  WHERE fid = OLD.fid;
 END;
 """
 
@@ -212,17 +253,36 @@ def create_geopackage(output: Path, *, force: bool = False) -> Path:
     output = output.resolve()
     if output.exists():
         if not force:
-            raise FileExistsError(f"{output} already exists; pass --force to replace it")
+            raise FileExistsError(
+                f"{output} already exists; pass --force to replace it"
+            )
         output.unlink()
 
     output.parent.mkdir(parents=True, exist_ok=True)
-
     connection = sqlite3.connect(output)
     try:
         connection.executescript(SCHEMA_SQL)
+
         integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
         if integrity != "ok":
-            raise RuntimeError(f"GeoPackage integrity check failed: {integrity}")
+            raise RuntimeError(
+                f"GeoPackage integrity check failed: {integrity}"
+            )
+
+        missing = connection.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type='table'
+              AND name IN (
+                'assets_point', 'pipelines', 'inspections',
+                'repairs', 'attachments'
+              )
+            """
+        ).fetchall()
+        if len(missing) != 5:
+            raise RuntimeError("Required business tables were not created")
+
         connection.commit()
     except Exception:
         connection.close()
@@ -235,7 +295,9 @@ def create_geopackage(output: Path, *, force: bool = False) -> Path:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create the Wubao waterworks GeoPackage")
+    parser = argparse.ArgumentParser(
+        description="Create the Wubao waterworks GeoPackage"
+    )
     parser.add_argument(
         "output",
         nargs="?",
@@ -243,7 +305,11 @@ def main() -> int:
         default=Path("wubao-waterworks.gpkg"),
         help="output GeoPackage path",
     )
-    parser.add_argument("--force", action="store_true", help="replace an existing file")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="replace an existing file",
+    )
     args = parser.parse_args()
 
     created = create_geopackage(args.output, force=args.force)
