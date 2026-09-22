@@ -28,6 +28,7 @@ def require_qgis():
             QgsAttributeEditorRelation,
             QgsCategorizedSymbolRenderer,
             QgsCoordinateReferenceSystem,
+            QgsDataSourceUri,
             QgsDefaultValue,
             QgsEditorWidgetSetup,
             QgsExpression,
@@ -48,6 +49,8 @@ def require_qgis():
             QgsTextFormat,
             QgsVectorLayer,
             QgsVectorLayerSimpleLabeling,
+            QgsVectorTileLayer,
+            QgsVectorTileUtils,
         )
     except ImportError as exc:
         raise SystemExit(
@@ -63,6 +66,7 @@ def require_qgis():
         "QgsAttributeEditorRelation": QgsAttributeEditorRelation,
         "QgsCategorizedSymbolRenderer": QgsCategorizedSymbolRenderer,
         "QgsCoordinateReferenceSystem": QgsCoordinateReferenceSystem,
+        "QgsDataSourceUri": QgsDataSourceUri,
         "QgsDefaultValue": QgsDefaultValue,
         "QgsEditorWidgetSetup": QgsEditorWidgetSetup,
         "QgsExpression": QgsExpression,
@@ -83,6 +87,8 @@ def require_qgis():
         "QgsTextFormat": QgsTextFormat,
         "QgsVectorLayer": QgsVectorLayer,
         "QgsVectorLayerSimpleLabeling": QgsVectorLayerSimpleLabeling,
+        "QgsVectorTileLayer": QgsVectorTileLayer,
+        "QgsVectorTileUtils": QgsVectorTileUtils,
     }
 
 
@@ -139,6 +145,56 @@ def configure_project_view_and_tree(api, project, layers, basemaps):
         basemap_group = root.addGroup("底图")
         for layer in basemaps:
             basemap_group.addLayer(layer)
+
+
+def add_tianditu_vector_map(api, project, token: str | None):
+    if not token:
+        return None
+
+    QgsDataSourceUri = api["QgsDataSourceUri"]
+    QgsVectorTileLayer = api["QgsVectorTileLayer"]
+    QgsVectorTileUtils = api["QgsVectorTileUtils"]
+
+    style_url = map_sources.with_token(
+        map_sources.VECTOR_STYLE_URL,
+        token,
+    )
+
+    uri = QgsDataSourceUri()
+    uri.setParam("type", "xyz")
+    uri.setParam("styleUrl", style_url)
+    encoded = uri.encodedUri()
+
+    try:
+        updated = QgsVectorTileUtils.updateUriSources(encoded)
+        if isinstance(updated, str):
+            encoded = updated
+        elif isinstance(updated, tuple) and updated:
+            encoded = updated[0]
+    except Exception as exc:
+        print(
+            f"warning: unable to resolve TianDiTu vector sources: {exc}"
+        )
+        return None
+
+    layer = QgsVectorTileLayer(encoded, "天地图·陕西 标准地图")
+    if not layer.isValid():
+        print("warning: TianDiTu Shaanxi vector layer is invalid")
+        return None
+
+    try:
+        style_result = layer.loadDefaultStyle()
+        if isinstance(style_result, tuple):
+            style_ok = bool(style_result[-1])
+        else:
+            style_ok = bool(style_result)
+        if not style_ok:
+            print("warning: TianDiTu vector style could not be loaded")
+    except Exception as exc:
+        print(f"warning: unable to load TianDiTu vector style: {exc}")
+
+    project.addMapLayer(layer, False)
+    return layer
 
 
 def add_tianditu_imagery(api, project, token: str | None):
@@ -464,7 +520,17 @@ def build_project(
         project.setFilePathStorage(Qgis.FilePathType.Relative)
 
         layers = load_layers(api, project, geopackage.resolve())
-        basemaps = add_tianditu_imagery(api, project, tianditu_token)
+        basemaps = []
+        vector_basemap = add_tianditu_vector_map(
+            api,
+            project,
+            tianditu_token,
+        )
+        if vector_basemap is not None:
+            basemaps.append(vector_basemap)
+        basemaps.extend(
+            add_tianditu_imagery(api, project, tianditu_token)
+        )
         for offline_basemap in offline_basemaps or []:
             basemaps.append(add_offline_basemap(api, project, offline_basemap))
         configure_project_view_and_tree(api, project, layers, basemaps)
