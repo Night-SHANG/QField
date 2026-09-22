@@ -175,6 +175,9 @@ class QfLayerUtils : public QObject
     //! Clears the current feature selection on a layer.
     Q_INVOKABLE static void clearLayerSelection( QgsVectorLayer *layer );
 
+    //! Deletes all features matching an expression and commits each deletion.
+    Q_INVOKABLE static int deleteFeaturesByExpression( QgsProject *project, QgsVectorLayer *layer, const QString &expression );
+
     /**
      * Deletes a vector layer feature, including related features tied to relationships.
      * \param project the project holding information on relationships
