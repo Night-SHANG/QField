@@ -50,7 +50,9 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("distanceValueExpression", self.text)
         self.assertIn("transform($geometry", self.text)
         self.assertIn('objectKind === "pipeline" ? pipelineLayer() : assetLayer()', self.text)
-        self.assertIn('text: plugin.selectedSearchKind() === "pipeline" ? "附近管线" : "附近点位"', self.text)
+        self.assertIn('text: "附近点位"', self.text)
+        self.assertIn('text: "附近管线"', self.text)
+        self.assertIn('function loadNearbyKind(objectKind)', self.text)
         self.assertNotIn("function loadNearbyAssets(radiusMeters)", self.text)
 
     def test_asset_types_are_loaded_from_project_data(self) -> None:
@@ -63,7 +65,28 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('iface.findItemByObjectName("projectFolderButton")', self.text)
         self.assertIn("function openProjectBackup()", self.text)
         self.assertIn("projectFolderButton.clicked()", self.text)
-        self.assertIn('text: "备份 / 导出项目"', self.text)
+        self.assertIn('text: "备份 / 导出"', self.text)
+
+    def test_worker_mode_hides_professional_qfield_controls(self) -> None:
+        self.assertIn("function applyWorkerMode(enableAdvanced)", self.text)
+        for object_name in (
+            "mainMenuBar",
+            "mainToolbar",
+            "zoomToolbar",
+            "locatorItem",
+            "welcomeActionCloud",
+            "welcomeActionNewProject",
+            "welcomeActionLocalProjects",
+        ):
+            self.assertIn(f'iface.findItemByObjectName("{object_name}")', self.text)
+        self.assertIn('text: "高级功能"', self.text)
+        self.assertIn('text: "当前不是供水巡检项目"', self.text)
+        self.assertIn('text: "打开供水巡检项目"', self.text)
+
+    def test_worker_mode_reuses_native_gnss_button(self) -> None:
+        self.assertIn('iface.findItemByObjectName("gnssButton")', self.text)
+        self.assertIn("gnssButton.clicked()", self.text)
+        self.assertIn('text: "定位到我"', self.text)
 
     def test_navigation_reuses_qfield_navigation(self) -> None:
         self.assertIn('iface.findItemByObjectName("navigation")', self.text)
