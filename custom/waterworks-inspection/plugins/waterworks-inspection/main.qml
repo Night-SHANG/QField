@@ -783,6 +783,7 @@ Item {
     }
 
     const expression = applySearchFilters(textExpression, objectKind);
+    clearQueryHighlight();
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
     let count = 0;
 
@@ -794,6 +795,11 @@ Item {
     iterator.close();
 
     searchBusy = false;
+    if (count > 0) {
+      QfLayerUtils.selectFeaturesByExpression(layer, expression);
+      QfLayerUtils.triggerLayerRepaint(layer);
+      queryResultsView.positionViewAtBeginning();
+    }
 
     if (count === 0) {
       mainWindow.displayToast(objectKind === "pipeline" ? "未找到匹配管线" : "未找到匹配点位");
@@ -802,10 +808,12 @@ Item {
     }
   }
 
-  function loadNearbyObjects(radiusMeters) {
+  function loadNearbyObjects(radiusMeters, objectKind) {
     assetSearchResults.clear();
+    clearQueryHighlight();
 
-    const objectKind = selectedSearchKind();
+    objectKind = objectKind || selectedSearchKind();
+    queryObjectKind = objectKind;
     const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
     if (!layer) {
       mainWindow.displayToast(objectKind === "pipeline" ? "当前项目缺少“供水管线”图层" : "当前项目缺少“供水设施”图层");
@@ -840,7 +848,7 @@ Item {
       "transform($geometry, 'EPSG:4490', '" + distanceCrs + "'), " +
       "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', '" + distanceCrs + "')" +
       ")";
-    const expression = applySearchFilters(distanceValueExpression + " <= " + radius, objectKind);
+    const expression = distanceValueExpression + " <= " + radius;
 
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
     const matches = [];
@@ -865,14 +873,18 @@ Item {
     }
 
     searchBusy = false;
-    assetSearchField.text = "";
+    querySearchField.text = "";
+    if (matches.length > 0) {
+      QfLayerUtils.selectFeaturesByExpression(layer, expression);
+      QfLayerUtils.triggerLayerRepaint(layer);
+      queryResultsView.positionViewAtBeginning();
+    }
 
     const objectLabel = objectKind === "pipeline" ? "管线" : "点位";
     if (matches.length === 0) {
       mainWindow.displayToast(radius + " 米内没有" + objectLabel);
     } else {
-      resultsView.positionViewAtBeginning();
-      mainWindow.displayToast("找到 " + matches.length + " 个附近" + objectLabel + "，点“地图”定位，点“详情”查看");
+      mainWindow.displayToast("附近找到 " + matches.length + " 个" + objectLabel + "，地图已高亮，列表在下方");
     }
   }
 
