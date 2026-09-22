@@ -1,0 +1,208 @@
+"""Declarative QGIS/QField profile for the Wubao waterworks project.
+
+Keep business labels, forms and relations here so they can be tested without a
+QGIS installation. configure_qgis_project.py is only an adapter from this
+profile to PyQGIS.
+"""
+
+PROJECT_TITLE = "吴堡供水巡检"
+PROJECT_CRS = "EPSG:4490"
+
+LAYERS = {
+    "assets_point": "供水设施",
+    "pipelines": "供水管线",
+    "inspections": "巡检记录",
+    "attachments": "附件",
+    "repairs": "维修记录",
+}
+
+DISPLAY_EXPRESSIONS = {
+    "assets_point": """coalesce("name", '未命名点位') ||
+CASE WHEN coalesce("code", '') <> '' THEN ' [' || "code" || ']' ELSE '' END""",
+    "pipelines": """coalesce("name", '未命名管线') ||
+CASE WHEN coalesce("code", '') <> '' THEN ' [' || "code" || ']' ELSE '' END""",
+    "inspections": """coalesce("inspector", '未填写人员') || ' · ' ||
+coalesce(to_string("inspected_at"), '未填写时间')""",
+    "attachments": """coalesce("caption", "file_path")""",
+    "repairs": """coalesce("repair_type", '维修') || ' · ' ||
+coalesce(to_string("reported_at"), '未填写时间')""",
+}
+
+ALIASES = {
+    "assets_point": {
+        "code": "设施编号",
+        "name": "点位名称",
+        "asset_type": "设施类型",
+        "status": "状态",
+        "pipeline_id": "所属管线",
+        "area_name": "所属片区",
+        "address_hint": "位置描述",
+        "install_date": "安装日期",
+        "last_inspection_at": "最近巡检",
+        "note": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间",
+    },
+    "pipelines": {
+        "code": "管线编号",
+        "name": "管线名称",
+        "pipe_type": "管线类型",
+        "material": "材质",
+        "diameter_mm": "管径（mm）",
+        "pressure_zone": "压力分区",
+        "status": "状态",
+        "install_date": "安装日期",
+        "note": "备注",
+        "created_at": "创建时间",
+        "updated_at": "更新时间",
+    },
+    "inspections": {
+        "asset_id": "所属设施",
+        "inspected_at": "巡检时间",
+        "inspector": "巡检人员",
+        "result": "巡检结果",
+        "pressure_value": "压力值",
+        "issue": "发现问题",
+        "action_taken": "现场处理",
+        "note": "备注",
+        "position_accuracy_m": "定位精度（m）",
+        "created_at": "创建时间",
+    },
+    "attachments": {
+        "media_type": "附件类型",
+        "file_path": "附件文件",
+        "caption": "说明",
+        "captured_at": "采集时间",
+        "created_at": "创建时间",
+    },
+    "repairs": {
+        "asset_id": "所属设施",
+        "inspection_id": "来源巡检",
+        "reported_at": "报修时间",
+        "repaired_at": "完成时间",
+        "repair_type": "维修类型",
+        "description": "维修内容",
+        "result": "处理结果",
+        "operator": "维修人员",
+        "note": "备注",
+    },
+}
+
+VALUE_MAPS = {
+    ("assets_point", "asset_type"): [
+        {"阀门井": "valve_well"},
+        {"阀门": "valve"},
+        {"压力表": "pressure_gauge"},
+        {"消防栓": "hydrant"},
+        {"排气阀": "air_valve"},
+        {"排泥阀": "drain_valve"},
+        {"水表": "meter"},
+        {"其他": "other"},
+    ],
+    ("assets_point", "status"): [
+        {"正常": "normal"},
+        {"需关注": "attention"},
+        {"待维修": "repair"},
+        {"停用": "disabled"},
+    ],
+    ("pipelines", "status"): [
+        {"正常": "normal"},
+        {"需关注": "attention"},
+        {"待维修": "repair"},
+        {"停用": "disabled"},
+    ],
+    ("inspections", "result"): [
+        {"正常": "normal"},
+        {"需关注": "attention"},
+        {"待维修": "repair"},
+    ],
+    ("attachments", "media_type"): [
+        {"照片": "photo"},
+        {"视频": "video"},
+        {"音频": "audio"},
+        {"文档": "document"},
+    ],
+}
+
+DEFAULTS = {
+    ("assets_point", "id"): "uuid('WithoutBraces')",
+    ("pipelines", "id"): "uuid('WithoutBraces')",
+    ("inspections", "id"): "uuid('WithoutBraces')",
+    ("attachments", "id"): "uuid('WithoutBraces')",
+    ("repairs", "id"): "uuid('WithoutBraces')",
+    ("assets_point", "created_at"): "now()",
+    ("pipelines", "created_at"): "now()",
+    ("inspections", "inspected_at"): "now()",
+    ("inspections", "created_at"): "now()",
+    ("attachments", "captured_at"): "now()",
+    ("attachments", "created_at"): "now()",
+    ("repairs", "reported_at"): "now()",
+}
+
+# id, human name, child layer/field, parent layer/field
+RELATIONS = [
+    ("pipeline_assets", "管线设施", "assets_point", "pipeline_id", "pipelines", "id"),
+    ("asset_inspections", "巡检历史", "inspections", "asset_id", "assets_point", "id"),
+    ("asset_repairs", "维修历史", "repairs", "asset_id", "assets_point", "id"),
+    ("inspection_repairs", "关联维修", "repairs", "inspection_id", "inspections", "id"),
+    ("asset_attachments", "设施附件", "attachments", "asset_id", "assets_point", "id"),
+    ("inspection_attachments", "巡检附件", "attachments", "inspection_id", "inspections", "id"),
+    ("repair_attachments", "维修附件", "attachments", "repair_id", "repairs", "id"),
+]
+
+RELATION_REFERENCE_FIELDS = {
+    ("assets_point", "pipeline_id"): ("pipeline_assets", True),
+    ("inspections", "asset_id"): ("asset_inspections", False),
+    ("repairs", "asset_id"): ("asset_repairs", False),
+    ("repairs", "inspection_id"): ("inspection_repairs", True),
+}
+
+HIDDEN_FIELDS = {
+    "assets_point": {"fid", "id", "created_at", "updated_at"},
+    "pipelines": {"fid", "id", "created_at", "updated_at"},
+    "inspections": {"fid", "id", "asset_id", "created_at"},
+    "attachments": {
+        "fid", "id", "asset_id", "inspection_id", "repair_id", "created_at"
+    },
+    "repairs": {"fid", "id", "asset_id", "inspection_id"},
+}
+
+FORM_FIELDS = {
+    "assets_point": [
+        "code", "name", "asset_type", "status", "pipeline_id", "area_name",
+        "address_hint", "install_date", "last_inspection_at", "note",
+    ],
+    "pipelines": [
+        "code", "name", "pipe_type", "material", "diameter_mm",
+        "pressure_zone", "status", "install_date", "note",
+    ],
+    "inspections": [
+        "inspected_at", "inspector", "result", "pressure_value", "issue",
+        "action_taken", "note", "position_accuracy_m",
+    ],
+    "attachments": ["media_type", "file_path", "caption", "captured_at"],
+    "repairs": [
+        "reported_at", "repaired_at", "repair_type", "description", "result",
+        "operator", "note",
+    ],
+}
+
+# Relations embedded in each parent form.
+FORM_RELATIONS = {
+    "assets_point": ["asset_inspections", "asset_repairs", "asset_attachments"],
+    "pipelines": ["pipeline_assets"],
+    "inspections": ["inspection_repairs", "inspection_attachments"],
+    "attachments": [],
+    "repairs": ["repair_attachments"],
+}
+
+ATTACHMENT_CONFIG = {
+    "StorageMode": 0,
+    "RelativeStorage": 1,
+    "FileWidget": True,
+    "FileWidgetButton": True,
+    "FileWidgetFilter": "",
+    "DocumentViewer": 1,
+    "DocumentViewerWidth": 0,
+    "DocumentViewerHeight": 0,
+}
