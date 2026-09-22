@@ -87,6 +87,13 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('feature.setAttribute("pipeline_id", objectId)', self.text)
         self.assertIn('feature.setAttribute("asset_id", objectId)', self.text)
 
+    def test_search_results_surface_inspection_recency(self) -> None:
+        self.assertIn('"assetLastInspection":', self.text)
+        self.assertIn('"assetDetail":', self.text)
+        self.assertIn('text: "仅看从未巡检"', self.text)
+        self.assertIn('clauses.push("\\\"last_inspection_at\\\" IS NULL")', self.text)
+        self.assertIn('"最近巡检 "', self.text)
+
     def test_search_results_support_object_kind_and_distance(self) -> None:
         self.assertIn('"objectKind": objectKind', self.text)
         self.assertIn('"assetDistance":', self.text)
