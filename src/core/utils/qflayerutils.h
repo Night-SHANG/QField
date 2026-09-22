@@ -169,6 +169,12 @@ class QfLayerUtils : public QObject
      */
     static Q_INVOKABLE void selectFeaturesInLayer( QgsVectorLayer *layer, const QList<int> &fids, Qgis::SelectBehavior behavior = Qgis::SelectBehavior::SetSelection );
 
+    //! Selects all features matching an expression, for map result highlighting.
+    Q_INVOKABLE static int selectFeaturesByExpression( QgsVectorLayer *layer, const QString &expression );
+
+    //! Clears the current feature selection on a layer.
+    Q_INVOKABLE static void clearLayerSelection( QgsVectorLayer *layer );
+
     /**
      * Deletes a vector layer feature, including related features tied to relationships.
      * \param project the project holding information on relationships
