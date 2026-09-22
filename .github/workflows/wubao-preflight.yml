@@ -1,0 +1,95 @@
+---
+name: 🚰 吴堡供水巡检 Preflight
+
+on:
+  push:
+    branches:
+      - feature/wubao-waterworks
+    paths:
+      - 'custom/wubao-waterworks/**'
+      - 'CMakeLists.txt'
+      - 'src/app/CMakeLists.txt'
+      - '.github/workflows/wubao-preflight.yml'
+  pull_request:
+    paths:
+      - 'custom/wubao-waterworks/**'
+      - 'CMakeLists.txt'
+      - 'src/app/CMakeLists.txt'
+      - '.github/workflows/wubao-preflight.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: wubao-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: 数据与业务配置测试
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+      - name: Run all waterworks tests
+        run: |
+          python3 -m unittest discover \
+            -s custom/wubao-waterworks/tests \
+            -p 'test_*.py' \
+            -v
+
+  theme-json:
+    name: 主题 JSON 检查
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+      - name: Validate theme JSON
+        run: python3 -m json.tool custom/wubao-waterworks/theme.json >/dev/null
+
+  structure:
+    name: 专用层结构检查
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+      - name: Verify required project files and build hooks
+        shell: bash
+        run: |
+          set -u
+          failures=0
+
+          for path in \
+            custom/wubao-waterworks/README.md \
+            custom/wubao-waterworks/theme.json \
+            custom/wubao-waterworks/plugins/wubao-waterworks/main.qml \
+            custom/wubao-waterworks/plugins/wubao-waterworks/metadata.txt \
+            custom/wubao-waterworks/schema/README.md \
+            custom/wubao-waterworks/tools/create_geopackage.py \
+            custom/wubao-waterworks/tools/configure_qgis_project.py \
+            custom/wubao-waterworks/tools/build_project_bundle.py
+          do
+            if [[ ! -f "${path}" ]]; then
+              echo "::error::Missing required file: ${path}"
+              failures=$((failures + 1))
+            fi
+          done
+
+          grep -q 'objectName: "wubaoWaterworksPlugin"' \
+            custom/wubao-waterworks/plugins/wubao-waterworks/main.qml || {
+              echo "::error::Waterworks plugin root object is missing"
+              failures=$((failures + 1))
+            }
+
+          grep -q 'APP_BUNDLED_PLUGINS' CMakeLists.txt || {
+            echo "::error::Bundled plugin build option is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'APP_THEME_PATH' src/app/CMakeLists.txt || {
+            echo "::error::Custom theme build hook is missing"
+            failures=$((failures + 1))
+          }
+
+          exit "${failures}"
