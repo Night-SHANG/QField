@@ -340,12 +340,13 @@ Item {
     }
   }
 
-  function loadNearbyAssets(radiusMeters) {
+  function loadNearbyObjects(radiusMeters) {
     assetSearchResults.clear();
 
-    const layer = assetLayer();
+    const objectKind = selectedSearchKind();
+    const layer = objectKind === "pipeline" ? pipelineLayer() : assetLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“供水设施”图层");
+      mainWindow.displayToast(objectKind === "pipeline" ? "当前项目缺少“供水管线”图层" : "当前项目缺少“供水设施”图层");
       return;
     }
 
@@ -365,47 +366,50 @@ Item {
     nearbyRadiusMeters = radius;
     searchBusy = true;
 
-    // Pick the UTM zone from the current GNSS position instead of hard-coding
-    // one deployment area. The search radii are short enough for this local
-    // projected distance to remain stable near normal zone boundaries.
+    // QGIS expressions calculate the shortest distance to the complete feature
+    // geometry. This works for both point assets and line pipelines.
     const lon = Number(info.longitude);
     const lat = Number(info.latitude);
     const utmZone = Math.max(1, Math.min(60, Math.floor((lon + 180) / 6) + 1));
     const utmEpsg = (lat >= 0 ? 32600 : 32700) + utmZone;
     const distanceCrs = "EPSG:" + utmEpsg;
-    const distanceExpression = "distance(" + "transform($geometry, 'EPSG:4490', '" + distanceCrs + "'), " + "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', '" + distanceCrs + "')" + ") <= " + radius;
-    const expression = applySearchFilters(distanceExpression, "asset");
+    const distanceValueExpression =
+      "distance(" +
+      "transform($geometry, 'EPSG:4490', '" + distanceCrs + "'), " +
+      "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', '" + distanceCrs + "')" +
+      ")";
+    const expression = applySearchFilters(distanceValueExpression + " <= " + radius, objectKind);
 
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
-    const distanceCrsObject = QfCoordinateReferenceSystemUtils.fromDescription(distanceCrs);
-    const currentUtm = QfGeometryUtils.reprojectPoint(QfGeometryUtils.point(lon, lat), QfCoordinateReferenceSystemUtils.wgs84Crs(), distanceCrsObject);
     const matches = [];
+    nearbyDistanceEvaluator.layer = layer;
 
     while (iterator.hasNext() && matches.length < 100) {
       const feature = iterator.next();
-      const center = QfGeometryUtils.centroid(feature.geometry);
-      const centerUtm = QfGeometryUtils.reprojectPoint(center, layer.crs, distanceCrsObject);
-      const dx = Number(centerUtm.x) - Number(currentUtm.x);
-      const dy = Number(centerUtm.y) - Number(currentUtm.y);
-      matches.push({
-        "feature": feature,
-        "distance": Math.sqrt(dx * dx + dy * dy)
-      });
+      nearbyDistanceEvaluator.feature = feature;
+      const distance = Number(nearbyDistanceEvaluator.evaluate(distanceValueExpression));
+      if (isFinite(distance) && distance >= 0) {
+        matches.push({
+          "feature": feature,
+          "distance": distance
+        });
+      }
     }
     iterator.close();
 
     matches.sort((a, b) => a.distance - b.distance);
     for (let i = 0; i < matches.length; i++) {
-      appendSearchResult(matches[i].feature, "asset", matches[i].distance);
+      appendSearchResult(matches[i].feature, objectKind, matches[i].distance);
     }
 
     searchBusy = false;
     assetSearchField.text = "";
 
+    const objectLabel = objectKind === "pipeline" ? "管线" : "点位";
     if (matches.length === 0) {
-      mainWindow.displayToast(radius + " 米内没有点位");
+      mainWindow.displayToast(radius + " 米内没有" + objectLabel);
     } else {
-      mainWindow.displayToast("已按距离载入 " + matches.length + " 个附近点位");
+      mainWindow.displayToast("已按距离载入 " + matches.length + " 个附近" + objectLabel);
     }
   }
 
@@ -586,6 +590,11 @@ Item {
     overlayFeatureFormDrawer.state = "Add";
     waterworksDialog.close();
     overlayFeatureFormDrawer.open();
+  }
+
+  QfExpressionEvaluator {
+    id: nearbyDistanceEvaluator
+    project: qgisProject
   }
 
   QfToolButton {
@@ -785,11 +794,11 @@ Item {
         }
 
         Button {
-          text: "附近点位"
-          enabled: !searchBusy && plugin.selectedSearchKind() === "asset"
+          text: plugin.selectedSearchKind() === "pipeline" ? "附近管线" : "附近点位"
+          enabled: !searchBusy
           onClicked: {
             const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex];
-            plugin.loadNearbyAssets(item.value);
+            plugin.loadNearbyObjects(item.value);
           }
         }
       }
