@@ -8,6 +8,15 @@ profile to PyQGIS.
 PROJECT_TITLE = "吴堡供水巡检"
 PROJECT_CRS = "EPSG:4490"
 
+# Default first-open view around Wubao county seat. This is intentionally a
+# working-area view, not an administrative boundary lock.
+DEFAULT_VIEW_EXTENT = (110.69, 37.41, 110.79, 37.49)
+
+LAYER_GROUPS = {
+    "管网业务": ("assets_point", "pipelines"),
+    "记录": ("inspections", "repairs", "attachments"),
+}
+
 LAYERS = {
     "assets_point": "供水设施",
     "pipelines": "供水管线",
@@ -124,6 +133,11 @@ VALUE_MAPS = {
         {"正常": "normal"},
         {"需关注": "attention"},
         {"待维修": "repair"},
+    ],
+    ("repairs", "result"): [
+        {"已解决": "resolved"},
+        {"继续观察": "monitor"},
+        {"未解决": "unresolved"},
     ],
 }
 
