@@ -14,7 +14,7 @@ from pathlib import Path
 
 APPLICATION_ID = 1196437808  # 0x47504B47 = GPKG
 USER_VERSION = 10300  # GeoPackage 1.3.0
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 UUID_SQL = """(
   lower(hex(randomblob(4))) || '-' ||
@@ -184,7 +184,9 @@ CREATE INDEX idx_pipelines_id ON pipelines(id);
 CREATE INDEX idx_pipelines_code ON pipelines(code);
 CREATE INDEX idx_inspections_asset ON inspections(asset_id);
 CREATE INDEX idx_inspections_time ON inspections(inspected_at);
-CREATE INDEX idx_attachments_owner ON attachments(owner_type, owner_id);
+CREATE INDEX idx_attachments_asset ON attachments(asset_id);
+CREATE INDEX idx_attachments_inspection ON attachments(inspection_id);
+CREATE INDEX idx_attachments_repair ON attachments(repair_id);
 CREATE INDEX idx_repairs_asset ON repairs(asset_id);
 CREATE INDEX idx_repairs_inspection ON repairs(inspection_id);
 
