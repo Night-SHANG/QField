@@ -27,155 +27,169 @@ Item {
   property real accuracyWarningMeters: 15
 
   Component.onCompleted: {
-    iface.addItemToPluginsToolbar(waterworksButton)
+    iface.addItemToPluginsToolbar(waterworksButton);
   }
 
   function assetLayer() {
     for (let i = 0; i < assetLayerNames.length; i++) {
-      const layers = qgisProject.mapLayersByName(assetLayerNames[i])
+      const layers = qgisProject.mapLayersByName(assetLayerNames[i]);
       if (layers && layers.length > 0) {
-        return layers[0]
+        return layers[0];
       }
     }
-    return null
+    return null;
   }
 
   function inspectionLayer() {
     for (let i = 0; i < inspectionLayerNames.length; i++) {
-      const layers = qgisProject.mapLayersByName(inspectionLayerNames[i])
+      const layers = qgisProject.mapLayersByName(inspectionLayerNames[i]);
       if (layers && layers.length > 0) {
-        return layers[0]
+        return layers[0];
       }
     }
-    return null
+    return null;
   }
 
   function repairLayer() {
     for (let i = 0; i < repairLayerNames.length; i++) {
-      const layers = qgisProject.mapLayersByName(repairLayerNames[i])
+      const layers = qgisProject.mapLayersByName(repairLayerNames[i]);
       if (layers && layers.length > 0) {
-        return layers[0]
+        return layers[0];
       }
     }
-    return null
+    return null;
   }
 
   function attachmentLayer() {
     for (let i = 0; i < attachmentLayerNames.length; i++) {
-      const layers = qgisProject.mapLayersByName(attachmentLayerNames[i])
+      const layers = qgisProject.mapLayersByName(attachmentLayerNames[i]);
       if (layers && layers.length > 0) {
-        return layers[0]
+        return layers[0];
       }
     }
-    return null
+    return null;
   }
 
   function positionText() {
-    const positioning = iface.positioning()
+    const positioning = iface.positioning();
     if (!positioning || !positioning.active) {
-      return "定位未开启"
+      return "定位未开启";
     }
 
-    const info = positioning.positionInformation
+    const info = positioning.positionInformation;
     if (!info || !info.longitudeValid || !info.latitudeValid) {
-      return "正在等待有效定位"
+      return "正在等待有效定位";
     }
 
-    let text = Number(info.latitude).toFixed(7) + ", " + Number(info.longitude).toFixed(7)
+    let text = Number(info.latitude).toFixed(7) + ", " + Number(info.longitude).toFixed(7);
     if (info.haccValid) {
-      text += "  ·  精度 ±" + Math.round(Number(info.hacc)) + " m"
+      text += "  ·  精度 ±" + Math.round(Number(info.hacc)) + " m";
     }
-    return text
+    return text;
   }
 
   function copyCurrentPosition() {
-    const positioning = iface.positioning()
+    const positioning = iface.positioning();
     if (!positioning || !positioning.active) {
-      mainWindow.displayToast("请先开启定位")
-      return
+      mainWindow.displayToast("请先开启定位");
+      return;
     }
 
-    const info = positioning.positionInformation
+    const info = positioning.positionInformation;
     if (!info || !info.longitudeValid || !info.latitudeValid) {
-      mainWindow.displayToast("暂未获得有效定位")
-      return
+      mainWindow.displayToast("暂未获得有效定位");
+      return;
     }
 
-    const text = Number(info.latitude).toFixed(7) + ", " + Number(info.longitude).toFixed(7)
-    platformUtilities.copyTextToClipboard(text)
-    mainWindow.displayToast("当前位置已复制")
+    const text = Number(info.latitude).toFixed(7) + ", " + Number(info.longitude).toFixed(7);
+    platformUtilities.copyTextToClipboard(text);
+    mainWindow.displayToast("当前位置已复制");
   }
 
   function escapeExpressionString(value) {
-    return String(value || "").replace(/'/g, "''")
+    return String(value || "").replace(/'/g, "''");
   }
 
   function selectedAssetType() {
     if (!assetTypeFilter || assetTypeFilter.currentIndex < 0) {
-      return ""
+      return "";
     }
-    return assetTypeFilter.model[assetTypeFilter.currentIndex].value
+    return assetTypeFilter.model[assetTypeFilter.currentIndex].value;
   }
 
   function selectedAssetStatus() {
     if (!assetStatusFilter || assetStatusFilter.currentIndex < 0) {
-      return ""
+      return "";
     }
-    return assetStatusFilter.model[assetStatusFilter.currentIndex].value
+    return assetStatusFilter.model[assetStatusFilter.currentIndex].value;
   }
 
   function applyAssetFilters(baseExpression) {
-    const clauses = []
-    const base = String(baseExpression || "").trim()
+    const clauses = [];
+    const base = String(baseExpression || "").trim();
     if (base.length > 0) {
-      clauses.push("(" + base + ")")
+      clauses.push("(" + base + ")");
     }
 
-    const typeValue = selectedAssetType()
+    const typeValue = selectedAssetType();
     if (typeValue.length > 0) {
-      clauses.push("\"asset_type\" = '" + escapeExpressionString(typeValue) + "'")
+      clauses.push("\"asset_type\" = '" + escapeExpressionString(typeValue) + "'");
     }
 
-    const statusValue = selectedAssetStatus()
+    const statusValue = selectedAssetStatus();
     if (statusValue === "problem") {
-      clauses.push("\"status\" IN ('attention', 'repair')")
+      clauses.push("\"status\" IN ('attention', 'repair')");
     } else if (statusValue.length > 0) {
-      clauses.push("\"status\" = '" + escapeExpressionString(statusValue) + "'")
+      clauses.push("\"status\" = '" + escapeExpressionString(statusValue) + "'");
     }
 
-    return clauses.length > 0 ? clauses.join(" AND ") : "1 = 1"
+    return clauses.length > 0 ? clauses.join(" AND ") : "1 = 1";
   }
 
   function assetTypeLabel(value) {
     switch (String(value || "")) {
-    case "valve_well": return "阀门井"
-    case "valve": return "阀门"
-    case "pressure_gauge": return "压力表"
-    case "hydrant": return "消防栓"
-    case "air_valve": return "排气阀"
-    case "drain_valve": return "排泥阀"
-    case "meter": return "水表"
-    case "other": return "其他"
-    default: return String(value || "")
+    case "valve_well":
+      return "阀门井";
+    case "valve":
+      return "阀门";
+    case "pressure_gauge":
+      return "压力表";
+    case "hydrant":
+      return "消防栓";
+    case "air_valve":
+      return "排气阀";
+    case "drain_valve":
+      return "排泥阀";
+    case "meter":
+      return "水表";
+    case "other":
+      return "其他";
+    default:
+      return String(value || "");
     }
   }
 
   function assetStatusLabel(value) {
     switch (String(value || "")) {
-    case "normal": return "正常"
-    case "attention": return "需关注"
-    case "repair": return "待维修"
-    case "disabled": return "停用"
-    default: return String(value || "")
+    case "normal":
+      return "正常";
+    case "attention":
+      return "需关注";
+    case "repair":
+      return "待维修";
+    case "disabled":
+      return "停用";
+    default:
+      return String(value || "");
     }
   }
 
   function appendAssetResult(feature, distanceMeters) {
-    const idValue = feature.attribute("id")
-    const nameValue = feature.attribute("name")
-    const codeValue = feature.attribute("code")
-    const typeValue = feature.attribute("asset_type")
-    const statusValue = feature.attribute("status")
+    const idValue = feature.attribute("id");
+    const nameValue = feature.attribute("name");
+    const codeValue = feature.attribute("code");
+    const typeValue = feature.attribute("asset_type");
+    const statusValue = feature.attribute("status");
 
     assetSearchResults.append({
       "assetId": idValue === null || idValue === undefined ? "" : String(idValue),
@@ -183,311 +197,281 @@ Item {
       "assetCode": codeValue === null || codeValue === undefined ? "" : String(codeValue),
       "assetType": typeValue === null || typeValue === undefined ? "" : String(typeValue),
       "assetStatus": statusValue === null || statusValue === undefined ? "" : String(statusValue),
-      "assetDistance": distanceMeters === undefined || distanceMeters === null
-        ? -1
-        : Math.max(0, Math.round(Number(distanceMeters)))
-    })
+      "assetDistance": distanceMeters === undefined || distanceMeters === null ? -1 : Math.max(0, Math.round(Number(distanceMeters)))
+    });
   }
 
   function searchAssets(term) {
-    assetSearchResults.clear()
+    assetSearchResults.clear();
 
-    const layer = assetLayer()
+    const layer = assetLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“供水设施”图层")
-      return
+      mainWindow.displayToast("当前项目缺少“供水设施”图层");
+      return;
     }
 
-    const trimmed = String(term || "").trim()
+    const trimmed = String(term || "").trim();
 
-    searchBusy = true
-    let textExpression = ""
+    searchBusy = true;
+    let textExpression = "";
     if (trimmed.length > 0) {
-      const needle = escapeExpressionString(trimmed.toLowerCase())
-      textExpression =
-        "lower(coalesce(\"name\", '')) LIKE '%" + needle + "%' OR " +
-        "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " +
-        "lower(coalesce(\"address_hint\", '')) LIKE '%" + needle + "%'"
+      const needle = escapeExpressionString(trimmed.toLowerCase());
+      textExpression = "lower(coalesce(\"name\", '')) LIKE '%" + needle + "%' OR " + "lower(coalesce(\"code\", '')) LIKE '%" + needle + "%' OR " + "lower(coalesce(\"address_hint\", '')) LIKE '%" + needle + "%'";
     }
 
-    const expression = applyAssetFilters(textExpression)
-    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression)
-    let count = 0
+    const expression = applyAssetFilters(textExpression);
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
+    let count = 0;
 
     while (iterator.hasNext() && count < 100) {
-      appendAssetResult(iterator.next())
-      count++
+      appendAssetResult(iterator.next());
+      count++;
     }
-    const hasMore = iterator.hasNext()
-    iterator.close()
+    const hasMore = iterator.hasNext();
+    iterator.close();
 
-    searchBusy = false
+    searchBusy = false;
 
     if (count === 0) {
-      mainWindow.displayToast("未找到匹配点位")
+      mainWindow.displayToast("未找到匹配点位");
     } else if (hasMore) {
-      mainWindow.displayToast("结果超过 100 条，请缩小筛选范围")
+      mainWindow.displayToast("结果超过 100 条，请缩小筛选范围");
     }
   }
 
   function loadNearbyAssets(radiusMeters) {
-    assetSearchResults.clear()
+    assetSearchResults.clear();
 
-    const layer = assetLayer()
+    const layer = assetLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“供水设施”图层")
-      return
+      mainWindow.displayToast("当前项目缺少“供水设施”图层");
+      return;
     }
 
-    const positioning = iface.positioning()
+    const positioning = iface.positioning();
     if (!positioning || !positioning.active || !positioning.positionInformation) {
-      mainWindow.displayToast("请先开启定位")
-      return
+      mainWindow.displayToast("请先开启定位");
+      return;
     }
 
-    const info = positioning.positionInformation
+    const info = positioning.positionInformation;
     if (!info.longitudeValid || !info.latitudeValid) {
-      mainWindow.displayToast("暂未获得有效定位")
-      return
+      mainWindow.displayToast("暂未获得有效定位");
+      return;
     }
 
-    const radius = Math.max(10, Math.min(5000, Number(radiusMeters)))
-    nearbyRadiusMeters = radius
-    searchBusy = true
+    const radius = Math.max(10, Math.min(5000, Number(radiusMeters)));
+    nearbyRadiusMeters = radius;
+    searchBusy = true;
 
     // Wubao is in UTM zone 49N. Transforming both geometries to EPSG:32649
     // gives a meter-based distance filter while the master data remains
     // CGCS2000/EPSG:4490.
-    const lon = Number(info.longitude)
-    const lat = Number(info.latitude)
-    const distanceExpression =
-      "distance(" +
-      "transform($geometry, 'EPSG:4490', 'EPSG:32649'), " +
-      "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', 'EPSG:32649')" +
-      ") <= " + radius
-    const expression = applyAssetFilters(distanceExpression)
+    const lon = Number(info.longitude);
+    const lat = Number(info.latitude);
+    const distanceExpression = "distance(" + "transform($geometry, 'EPSG:4490', 'EPSG:32649'), " + "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', 'EPSG:32649')" + ") <= " + radius;
+    const expression = applyAssetFilters(distanceExpression);
 
-    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression)
-    const utm49 = QfCoordinateReferenceSystemUtils.fromDescription("EPSG:32649")
-    const currentUtm = QfGeometryUtils.reprojectPoint(
-      QfGeometryUtils.point(lon, lat),
-      QfCoordinateReferenceSystemUtils.wgs84Crs(),
-      utm49
-    )
-    const matches = []
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
+    const utm49 = QfCoordinateReferenceSystemUtils.fromDescription("EPSG:32649");
+    const currentUtm = QfGeometryUtils.reprojectPoint(QfGeometryUtils.point(lon, lat), QfCoordinateReferenceSystemUtils.wgs84Crs(), utm49);
+    const matches = [];
 
     while (iterator.hasNext() && matches.length < 100) {
-      const feature = iterator.next()
-      const center = QfGeometryUtils.centroid(feature.geometry)
-      const centerUtm = QfGeometryUtils.reprojectPoint(center, layer.crs, utm49)
-      const dx = Number(centerUtm.x) - Number(currentUtm.x)
-      const dy = Number(centerUtm.y) - Number(currentUtm.y)
+      const feature = iterator.next();
+      const center = QfGeometryUtils.centroid(feature.geometry);
+      const centerUtm = QfGeometryUtils.reprojectPoint(center, layer.crs, utm49);
+      const dx = Number(centerUtm.x) - Number(currentUtm.x);
+      const dy = Number(centerUtm.y) - Number(currentUtm.y);
       matches.push({
         "feature": feature,
         "distance": Math.sqrt(dx * dx + dy * dy)
-      })
+      });
     }
-    iterator.close()
+    iterator.close();
 
-    matches.sort((a, b) => a.distance - b.distance)
+    matches.sort((a, b) => a.distance - b.distance);
     for (let i = 0; i < matches.length; i++) {
-      appendAssetResult(matches[i].feature, matches[i].distance)
+      appendAssetResult(matches[i].feature, matches[i].distance);
     }
 
-    searchBusy = false
-    assetSearchField.text = ""
+    searchBusy = false;
+    assetSearchField.text = "";
 
     if (matches.length === 0) {
-      mainWindow.displayToast(radius + " 米内没有点位")
+      mainWindow.displayToast(radius + " 米内没有点位");
     } else {
-      mainWindow.displayToast("已按距离载入 " + matches.length + " 个附近点位")
+      mainWindow.displayToast("已按距离载入 " + matches.length + " 个附近点位");
     }
   }
 
   function featureForAssetId(assetId) {
-    const layer = assetLayer()
+    const layer = assetLayer();
     if (!layer || !assetId) {
-      return null
+      return null;
     }
 
-    const escapedId = escapeExpressionString(assetId)
-    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(
-      layer,
-      "\"id\" = '" + escapedId + "'"
-    )
+    const escapedId = escapeExpressionString(assetId);
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, "\"id\" = '" + escapedId + "'");
     if (!iterator.hasNext()) {
-      iterator.close()
-      return null
+      iterator.close();
+      return null;
     }
 
-    const feature = iterator.next()
-    iterator.close()
-    return feature
+    const feature = iterator.next();
+    iterator.close();
+    return feature;
   }
 
   function navigateToAsset(assetId) {
-    const layer = assetLayer()
-    const feature = featureForAssetId(assetId)
+    const layer = assetLayer();
+    const feature = featureForAssetId(assetId);
     if (!layer || !feature || !navigation) {
-      mainWindow.displayToast("无法开始点位导航")
-      return
+      mainWindow.displayToast("无法开始点位导航");
+      return;
     }
 
-    navigation.setDestinationFeature(feature, layer)
-    waterworksDialog.close()
-    mainWindow.displayToast(
-      "开始导航：" + QfFeatureUtils.displayName(layer, feature)
-    )
+    navigation.setDestinationFeature(feature, layer);
+    waterworksDialog.close();
+    mainWindow.displayToast("开始导航：" + QfFeatureUtils.displayName(layer, feature));
   }
 
   function openAsset(assetId, editMode) {
-    const layer = assetLayer()
+    const layer = assetLayer();
     if (!layer || !featureForm || !assetId) {
-      mainWindow.displayToast("无法打开点位")
-      return
+      mainWindow.displayToast("无法打开点位");
+      return;
     }
 
-    const escapedId = escapeExpressionString(assetId)
-    featureForm.model.setFeatures(layer, "\"id\" = '" + escapedId + "'")
-    featureForm.selection.focusedItem = 0
-    featureForm.state = editMode ? "FeatureFormEdit" : "FeatureForm"
-    waterworksDialog.close()
+    const escapedId = escapeExpressionString(assetId);
+    featureForm.model.setFeatures(layer, "\"id\" = '" + escapedId + "'");
+    featureForm.selection.focusedItem = 0;
+    featureForm.state = editMode ? "FeatureFormEdit" : "FeatureForm";
+    waterworksDialog.close();
   }
 
   function createAssetAtCurrentPosition() {
-    const layer = assetLayer()
+    const layer = assetLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“供水设施”图层")
-      return
+      mainWindow.displayToast("当前项目缺少“供水设施”图层");
+      return;
     }
 
-    const positioning = iface.positioning()
+    const positioning = iface.positioning();
     if (!positioning || !positioning.active) {
-      mainWindow.displayToast("请先开启定位")
-      return
+      mainWindow.displayToast("请先开启定位");
+      return;
     }
 
-    const info = positioning.positionInformation
+    const info = positioning.positionInformation;
     if (!info || !info.longitudeValid || !info.latitudeValid) {
-      mainWindow.displayToast("暂未获得有效定位")
-      return
+      mainWindow.displayToast("暂未获得有效定位");
+      return;
     }
 
     if (!positioning.projectedPosition) {
-      mainWindow.displayToast("无法取得项目坐标")
-      return
+      mainWindow.displayToast("无法取得项目坐标");
+      return;
     }
 
-    if (
-      info.haccValid &&
-      Number(info.hacc) > accuracyWarningMeters
-    ) {
-      mainWindow.displayToast(
-        "当前定位精度约 ±" + Math.round(Number(info.hacc)) +
-        " 米，建议到开阔位置等待定位稳定后再采点"
-      )
+    if (info.haccValid && Number(info.hacc) > accuracyWarningMeters) {
+      mainWindow.displayToast("当前定位精度约 ±" + Math.round(Number(info.hacc)) + " 米，建议到开阔位置等待定位稳定后再采点");
     }
 
-    const projected = positioning.projectedPosition
-    const geometry = QfGeometryUtils.createGeometryFromWkt(
-      "POINT(" + Number(projected.x) + " " + Number(projected.y) + ")"
-    )
-    const feature = QfFeatureUtils.createFeature(
-      layer,
-      geometry,
-      positioning.positionInformation
-    )
+    const projected = positioning.projectedPosition;
+    const geometry = QfGeometryUtils.createGeometryFromWkt("POINT(" + Number(projected.x) + " " + Number(projected.y) + ")");
+    const feature = QfFeatureUtils.createFeature(layer, geometry, positioning.positionInformation);
 
     if (!overlayFeatureFormDrawer) {
-      mainWindow.displayToast("无法打开新增点位表单")
-      return
+      mainWindow.displayToast("无法打开新增点位表单");
+      return;
     }
 
-    overlayFeatureFormDrawer.featureModel.feature = feature
-    overlayFeatureFormDrawer.state = "Add"
-    waterworksDialog.close()
-    overlayFeatureFormDrawer.open()
+    overlayFeatureFormDrawer.featureModel.feature = feature;
+    overlayFeatureFormDrawer.state = "Add";
+    waterworksDialog.close();
+    overlayFeatureFormDrawer.open();
   }
 
   function createInspection(assetId) {
-    const layer = inspectionLayer()
+    const layer = inspectionLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“巡检记录”图层")
-      return
+      mainWindow.displayToast("当前项目缺少“巡检记录”图层");
+      return;
     }
     if (!assetId) {
-      mainWindow.displayToast("无法确定巡检设施")
-      return
+      mainWindow.displayToast("无法确定巡检设施");
+      return;
     }
     if (!overlayFeatureFormDrawer) {
-      mainWindow.displayToast("无法打开巡检表单")
-      return
+      mainWindow.displayToast("无法打开巡检表单");
+      return;
     }
 
-    const feature = QfFeatureUtils.createFeature(layer)
-    feature.setAttribute("asset_id", assetId)
+    const feature = QfFeatureUtils.createFeature(layer);
+    feature.setAttribute("asset_id", assetId);
 
-    const positioning = iface.positioning()
+    const positioning = iface.positioning();
     if (positioning && positioning.active && positioning.positionInformation) {
-      const info = positioning.positionInformation
-      const accuracy = Number(info.hacc)
+      const info = positioning.positionInformation;
+      const accuracy = Number(info.hacc);
       if (info.haccValid && isFinite(accuracy) && accuracy >= 0) {
-        feature.setAttribute("position_accuracy_m", accuracy)
+        feature.setAttribute("position_accuracy_m", accuracy);
       }
     }
 
-    overlayFeatureFormDrawer.featureModel.feature = feature
-    overlayFeatureFormDrawer.state = "Add"
-    waterworksDialog.close()
-    overlayFeatureFormDrawer.open()
+    overlayFeatureFormDrawer.featureModel.feature = feature;
+    overlayFeatureFormDrawer.state = "Add";
+    waterworksDialog.close();
+    overlayFeatureFormDrawer.open();
   }
 
   function createRepair(assetId) {
-    const layer = repairLayer()
+    const layer = repairLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“维修记录”图层")
-      return
+      mainWindow.displayToast("当前项目缺少“维修记录”图层");
+      return;
     }
     if (!assetId) {
-      mainWindow.displayToast("无法确定维修设施")
-      return
+      mainWindow.displayToast("无法确定维修设施");
+      return;
     }
     if (!overlayFeatureFormDrawer) {
-      mainWindow.displayToast("无法打开维修表单")
-      return
+      mainWindow.displayToast("无法打开维修表单");
+      return;
     }
 
-    const feature = QfFeatureUtils.createFeature(layer)
-    feature.setAttribute("asset_id", assetId)
+    const feature = QfFeatureUtils.createFeature(layer);
+    feature.setAttribute("asset_id", assetId);
 
-    overlayFeatureFormDrawer.featureModel.feature = feature
-    overlayFeatureFormDrawer.state = "Add"
-    waterworksDialog.close()
-    overlayFeatureFormDrawer.open()
+    overlayFeatureFormDrawer.featureModel.feature = feature;
+    overlayFeatureFormDrawer.state = "Add";
+    waterworksDialog.close();
+    overlayFeatureFormDrawer.open();
   }
 
   function createAssetAttachment(assetId) {
-    const layer = attachmentLayer()
+    const layer = attachmentLayer();
     if (!layer) {
-      mainWindow.displayToast("当前项目缺少“附件”图层")
-      return
+      mainWindow.displayToast("当前项目缺少“附件”图层");
+      return;
     }
     if (!assetId) {
-      mainWindow.displayToast("无法确定附件所属设施")
-      return
+      mainWindow.displayToast("无法确定附件所属设施");
+      return;
     }
     if (!overlayFeatureFormDrawer) {
-      mainWindow.displayToast("无法打开附件表单")
-      return
+      mainWindow.displayToast("无法打开附件表单");
+      return;
     }
 
-    const feature = QfFeatureUtils.createFeature(layer)
-    feature.setAttribute("asset_id", assetId)
+    const feature = QfFeatureUtils.createFeature(layer);
+    feature.setAttribute("asset_id", assetId);
 
-    overlayFeatureFormDrawer.featureModel.feature = feature
-    overlayFeatureFormDrawer.state = "Add"
-    waterworksDialog.close()
-    overlayFeatureFormDrawer.open()
+    overlayFeatureFormDrawer.featureModel.feature = feature;
+    overlayFeatureFormDrawer.state = "Add";
+    waterworksDialog.close();
+    overlayFeatureFormDrawer.open();
   }
 
   QfToolButton {
@@ -574,15 +558,42 @@ Item {
           id: assetTypeFilter
           Layout.fillWidth: true
           model: [
-            { text: "全部类型", value: "" },
-            { text: "阀门井", value: "valve_well" },
-            { text: "阀门", value: "valve" },
-            { text: "压力表", value: "pressure_gauge" },
-            { text: "消防栓", value: "hydrant" },
-            { text: "排气阀", value: "air_valve" },
-            { text: "排泥阀", value: "drain_valve" },
-            { text: "水表", value: "meter" },
-            { text: "其他", value: "other" }
+            {
+              text: "全部类型",
+              value: ""
+            },
+            {
+              text: "阀门井",
+              value: "valve_well"
+            },
+            {
+              text: "阀门",
+              value: "valve"
+            },
+            {
+              text: "压力表",
+              value: "pressure_gauge"
+            },
+            {
+              text: "消防栓",
+              value: "hydrant"
+            },
+            {
+              text: "排气阀",
+              value: "air_valve"
+            },
+            {
+              text: "排泥阀",
+              value: "drain_valve"
+            },
+            {
+              text: "水表",
+              value: "meter"
+            },
+            {
+              text: "其他",
+              value: "other"
+            }
           ]
           textRole: "text"
           currentIndex: 0
@@ -592,12 +603,30 @@ Item {
           id: assetStatusFilter
           Layout.fillWidth: true
           model: [
-            { text: "全部状态", value: "" },
-            { text: "需处理", value: "problem" },
-            { text: "正常", value: "normal" },
-            { text: "需关注", value: "attention" },
-            { text: "待维修", value: "repair" },
-            { text: "停用", value: "disabled" }
+            {
+              text: "全部状态",
+              value: ""
+            },
+            {
+              text: "需处理",
+              value: "problem"
+            },
+            {
+              text: "正常",
+              value: "normal"
+            },
+            {
+              text: "需关注",
+              value: "attention"
+            },
+            {
+              text: "待维修",
+              value: "repair"
+            },
+            {
+              text: "停用",
+              value: "disabled"
+            }
           ]
           textRole: "text"
           currentIndex: 0
@@ -611,11 +640,26 @@ Item {
         ComboBox {
           id: nearbyRadiusCombo
           model: [
-            { text: "100 m", value: 100 },
-            { text: "300 m", value: 300 },
-            { text: "500 m", value: 500 },
-            { text: "1 km", value: 1000 },
-            { text: "2 km", value: 2000 }
+            {
+              text: "100 m",
+              value: 100
+            },
+            {
+              text: "300 m",
+              value: 300
+            },
+            {
+              text: "500 m",
+              value: 500
+            },
+            {
+              text: "1 km",
+              value: 1000
+            },
+            {
+              text: "2 km",
+              value: 2000
+            }
           ]
           textRole: "text"
           currentIndex: 2
@@ -625,8 +669,8 @@ Item {
           text: "附近点位"
           enabled: !searchBusy
           onClicked: {
-            const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex]
-            plugin.loadNearbyAssets(item.value)
+            const item = nearbyRadiusCombo.model[nearbyRadiusCombo.currentIndex];
+            plugin.loadNearbyAssets(item.value);
           }
         }
       }
@@ -698,10 +742,7 @@ Item {
 
             Label {
               Layout.fillWidth: true
-              text: (assetDistance >= 0 ? assetDistance + " m  " : "") +
-                    (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") +
-                    (assetType.length > 0 ? plugin.assetTypeLabel(assetType) + "  " : "") +
-                    (assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : "")
+              text: (assetDistance >= 0 ? assetDistance + " m  " : "") + (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") + (assetType.length > 0 ? plugin.assetTypeLabel(assetType) + "  " : "") + (assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : "")
               color: QfTheme.secondaryTextColor
               elide: Text.ElideRight
             }
