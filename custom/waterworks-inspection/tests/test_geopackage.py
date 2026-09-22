@@ -545,24 +545,103 @@ class GeoPackageSchemaTests(unittest.TestCase):
 
         self.assertEqual(result, "unresolved")
 
-    def test_history_tables_are_not_delete_cascaded(self) -> None:
+    def test_linked_history_blocks_physical_parent_deletion(self) -> None:
         with sqlite3.connect(self.path) as db:
             asset_id = "11111111-1111-1111-1111-111111111111"
+            pipeline_id = "13131313-1313-1313-1313-131313131313"
             db.execute(
                 "INSERT INTO assets_point(id, name) VALUES (?, ?)",
-                (asset_id, "历史保留测试"),
+                (asset_id, "历史保护测试"),
+            )
+            db.execute(
+                "INSERT INTO pipelines(id, name) VALUES (?, ?)",
+                (pipeline_id, "历史保护管线"),
             )
             db.execute(
                 "INSERT INTO inspections(asset_id, result) VALUES (?, ?)",
                 (asset_id, "normal"),
             )
-            db.execute("DELETE FROM assets_point WHERE id=?", (asset_id,))
-            history_count = db.execute(
-                "SELECT count(*) FROM inspections WHERE asset_id=?",
-                (asset_id,),
-            ).fetchone()[0]
+            db.execute(
+                "INSERT INTO inspections(pipeline_id, result) VALUES (?, ?)",
+                (pipeline_id, "normal"),
+            )
 
-        self.assertEqual(history_count, 1)
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute("DELETE FROM assets_point WHERE id=?", (asset_id,))
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute("DELETE FROM pipelines WHERE id=?", (pipeline_id,))
+
+            db.execute(
+                "UPDATE assets_point SET status='disabled' WHERE id=?",
+                (asset_id,),
+            )
+            db.execute(
+                "UPDATE pipelines SET status='disabled' WHERE id=?",
+                (pipeline_id,),
+            )
+
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM assets_point WHERE id=?", (asset_id,)
+                ).fetchone()[0],
+                "disabled",
+            )
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM pipelines WHERE id=?", (pipeline_id,)
+                ).fetchone()[0],
+                "disabled",
+            )
+
+    def test_unlinked_new_object_can_still_be_deleted(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "14141414-1414-1414-1414-141414141414"
+            db.execute(
+                "INSERT INTO assets_point(id, name) VALUES (?, ?)",
+                (asset_id, "误建空点位"),
+            )
+            db.execute("DELETE FROM assets_point WHERE id=?", (asset_id,))
+            self.assertIsNone(
+                db.execute(
+                    "SELECT id FROM assets_point WHERE id=?", (asset_id,)
+                ).fetchone()
+            )
+
+    def test_child_history_with_dependents_cannot_be_orphaned(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "15151515-1515-1515-1515-151515151515"
+            inspection_id = "16161616-1616-1616-1616-161616161616"
+            repair_id = "17171717-1717-1717-1717-171717171717"
+            db.execute(
+                "INSERT INTO assets_point(id, name) VALUES (?, ?)",
+                (asset_id, "子历史保护测试"),
+            )
+            db.execute(
+                """
+                INSERT INTO inspections(id, asset_id, result)
+                VALUES (?, ?, 'repair')
+                """,
+                (inspection_id, asset_id),
+            )
+            db.execute(
+                """
+                INSERT INTO repairs(id, asset_id, inspection_id, result)
+                VALUES (?, ?, ?, 'unresolved')
+                """,
+                (repair_id, asset_id, inspection_id),
+            )
+            db.execute(
+                """
+                INSERT INTO attachments(repair_id, media_type, photo_path)
+                VALUES (?, 'photo', 'attachments/repairs/history.jpg')
+                """,
+                (repair_id,),
+            )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute("DELETE FROM inspections WHERE id=?", (inspection_id,))
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute("DELETE FROM repairs WHERE id=?", (repair_id,))
 
 
 if __name__ == "__main__":
