@@ -132,6 +132,49 @@ class GeoPackageSchemaTests(unittest.TestCase):
                     (asset_id,),
                 )
 
+    def test_attachment_media_type_must_match_populated_field(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO attachments(
+                        asset_id, media_type, video_path
+                    ) VALUES (?, 'photo', 'attachments/a.mp4')
+                    """,
+                    (asset_id,),
+                )
+
+            db.execute(
+                """
+                INSERT INTO attachments(
+                    asset_id, media_type, video_path
+                ) VALUES (?, 'video', 'attachments/a.mp4')
+                """,
+                (asset_id,),
+            )
+
+    def test_attachment_media_type_defaults_to_photo(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+            db.execute(
+                """
+                INSERT INTO attachments(asset_id, photo_path)
+                VALUES (?, 'attachments/default.jpg')
+                """,
+                (asset_id,),
+            )
+            media_type = db.execute(
+                """
+                SELECT media_type
+                FROM attachments
+                WHERE photo_path='attachments/default.jpg'
+                """
+            ).fetchone()[0]
+
+        self.assertEqual(media_type, "photo")
+
     def test_attachment_media_columns_cover_qfield_capture_modes(self) -> None:
         with sqlite3.connect(self.path) as db:
             columns = {
