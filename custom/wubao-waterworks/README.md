@@ -31,3 +31,47 @@ Android CI 使用仓库中的 `.github/workflows/wubao-android.yml`。
 3. 接入天地图·陕西在线底图，并准备吴堡县离线地图包方案。
 4. 建立现场检修主流程：查找点位 → 导航/定位 → 查看历史照片 → 记录巡检 → 添加附件。
 5. 保持与 QField master 的可持续同步。
+
+
+## 当前现场工作流
+
+专用插件当前提供以下入口：
+
+1. 按名称、编号、位置描述搜索点位。
+2. 按设施类型和状态筛选；“需处理”同时覆盖“需关注”和“待维修”。
+3. 按当前位置查询 100 m / 300 m / 500 m / 1 km / 2 km 内点位，并按距离排序。
+4. 对点位执行查看、编辑、QField 原生导航、巡检、维修、附件操作。
+5. 当前位置新增点位时复用 QField GNSS 与原生 FeatureForm。
+6. 巡检自动关联设施，并在 GNSS 精度有效时记录定位精度。
+7. 设施详情通过原生 Relation 查看巡检、维修和附件历史。
+
+## 生成项目
+
+数据文件可单独生成：
+
+```bash
+python custom/wubao-waterworks/tools/create_geopackage.py ./wubao-waterworks.gpkg
+```
+
+完整项目包需要在能够导入 PyQGIS 的 QGIS Python 环境运行：
+
+```bash
+export TDT_SHAANXI_TOKEN='<你的授权 Token>'
+python custom/wubao-waterworks/tools/build_project_bundle.py ./WubaoWaterworks
+```
+
+也可以追加一个或多个离线底图：
+
+```bash
+python custom/wubao-waterworks/tools/build_project_bundle.py \
+  ./WubaoWaterworks \
+  --offline-basemap ./wubao.mbtiles \
+  --offline-basemap ./local-imagery.tif
+```
+
+支持的离线底图格式为 MBTiles、GeoTIFF 和 COG。
+
+### Token 安全
+
+天地图 Token 不写入 Git 仓库，推荐通过 `TDT_SHAANXI_TOKEN` 环境变量传入。
+生成后的本地 QGIS/QField 项目为了访问在线瓦片会包含实际服务 URL，因此包含 Token 的项目包应视为内部工作数据，不应直接提交到公开仓库。离线部署可以完全不提供在线 Token。
