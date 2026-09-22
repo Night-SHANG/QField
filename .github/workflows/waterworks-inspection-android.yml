@@ -113,16 +113,30 @@ jobs:
       - name: Setup CMake and Ninja
         uses: lukka/get-cmake@latest
         with:
-          cmakeVersion: 3.29.0
+          cmakeVersion: 3.31.6
+
+      - name: Verify build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --version
+          ninja --version
+          python3 - <<'PY'
+          import re
+          import subprocess
+
+          version = subprocess.check_output(
+              ["cmake", "--version"], text=True
+          ).splitlines()[0]
+          match = re.search(r"(\d+)\.(\d+)\.(\d+)", version)
+          if not match or tuple(map(int, match.groups())) < (3, 31, 6):
+              raise SystemExit(f"CMake 3.31.6+ required, got: {version}")
+          PY
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y gperf autopoint '^libxcb.*-dev' libxrandr-dev libx11-xcb-dev libsm-dev libegl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev autoconf-archive libgstreamer-gl1.0-0 libgstreamer-plugins-base1.0-0 libfuse2 libcups2-dev nasm libltdl-dev
-          wget https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-linux-x86_64.sh -O /tmp/cmakeinstall.sh
-          chmod +x /tmp/cmakeinstall.sh
-          sudo /tmp/cmakeinstall.sh --prefix=/usr/local --exclude-subdir
-          rm /tmp/cmakeinstall.sh
 
       - name: Generate version details
         shell: bash
@@ -141,7 +155,9 @@ jobs:
       - name: Configure
         env:
           WORKSPACE: ${{ github.workspace }}
+        shell: bash
         run: |
+          set -euo pipefail
           cmake -S "${{ github.workspace }}" \
                 -B "${CMAKE_BUILD_DIR}" \
                 -G Ninja \
@@ -166,14 +182,20 @@ jobs:
                 -D NUGET_TOKEN="${{ secrets.GITHUB_TOKEN }}"
 
       - name: Build
-        run: cmake --build "${CMAKE_BUILD_DIR}" --config "${BUILD_TYPE}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build "${CMAKE_BUILD_DIR}" --config "${BUILD_TYPE}"
 
       - name: Package debug APK
+        shell: bash
         run: |
+          set -euo pipefail
           cmake --build "${CMAKE_BUILD_DIR}" --target bundle --config "${BUILD_TYPE}"
           APK="${CMAKE_BUILD_DIR}/src/app/android-build/build/outputs/apk/debug/android-build-debug.apk"
-          test -f "${APK}"
+          test -s "${APK}"
           cp "${APK}" /tmp/waterworks-inspection-arm64-debug.apk
+          sha256sum /tmp/waterworks-inspection-arm64-debug.apk
 
       - name: Upload dependency logs on failure
         if: failure()
