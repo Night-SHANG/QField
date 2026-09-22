@@ -9,7 +9,7 @@ import org.qfield.gui
 
 Item {
   id: plugin
-  objectName: "wubaoWaterworksPlugin"
+  objectName: "waterworksInspectionPlugin"
 
   property var mainWindow: iface.mainWindow()
   property var mapCanvas: iface.mapCanvas()
@@ -18,6 +18,7 @@ Item {
   property var featureForm: iface.findItemByObjectName("featureForm")
   property var navigation: iface.findItemByObjectName("navigation")
 
+  readonly property var assetTypeLayerNames: ["设施类型配置", "asset_types"]
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
   readonly property var repairLayerNames: ["维修记录", "repairs"]
@@ -28,6 +29,17 @@ Item {
 
   Component.onCompleted: {
     iface.addItemToPluginsToolbar(waterworksButton);
+    loadAssetTypeOptions();
+  }
+
+  function assetTypeLayer() {
+    for (let i = 0; i < assetTypeLayerNames.length; i++) {
+      const layers = qgisProject.mapLayersByName(assetTypeLayerNames[i]);
+      if (layers && layers.length > 0) {
+        return layers[0];
+      }
+    }
+    return null;
   }
 
   function assetLayer() {
@@ -114,7 +126,8 @@ Item {
     if (!assetTypeFilter || assetTypeFilter.currentIndex < 0) {
       return "";
     }
-    return assetTypeFilter.model[assetTypeFilter.currentIndex].value;
+    const item = assetTypeOptions.get(assetTypeFilter.currentIndex);
+    return item ? String(item.value || "") : "";
   }
 
   function selectedAssetStatus() {
@@ -146,27 +159,51 @@ Item {
     return clauses.length > 0 ? clauses.join(" AND ") : "1 = 1";
   }
 
-  function assetTypeLabel(value) {
-    switch (String(value || "")) {
-    case "valve_well":
-      return "阀门井";
-    case "valve":
-      return "阀门";
-    case "pressure_gauge":
-      return "压力表";
-    case "hydrant":
-      return "消防栓";
-    case "air_valve":
-      return "排气阀";
-    case "drain_valve":
-      return "排泥阀";
-    case "meter":
-      return "水表";
-    case "other":
-      return "其他";
-    default:
-      return String(value || "");
+  function loadAssetTypeOptions() {
+    assetTypeOptions.clear();
+    assetTypeOptions.append({
+      "text": "全部类型",
+      "value": "",
+      "sortOrder": -1
+    });
+
+    const layer = assetTypeLayer();
+    if (!layer) {
+      return;
     }
+
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, "\"active\" = 1");
+    const options = [];
+    while (iterator.hasNext()) {
+      const feature = iterator.next();
+      options.push({
+        "text": String(feature.attribute("label") || feature.attribute("code") || ""),
+        "value": String(feature.attribute("code") || ""),
+        "sortOrder": Number(feature.attribute("sort_order") || 100)
+      });
+    }
+    iterator.close();
+
+    options.sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) {
+        return a.sortOrder - b.sortOrder;
+      }
+      return a.text.localeCompare(b.text);
+    });
+    for (let i = 0; i < options.length; i++) {
+      assetTypeOptions.append(options[i]);
+    }
+  }
+
+  function assetTypeLabel(value) {
+    const key = String(value || "");
+    for (let i = 0; i < assetTypeOptions.count; i++) {
+      const item = assetTypeOptions.get(i);
+      if (String(item.value) === key) {
+        return String(item.text);
+      }
+    }
+    return key;
   }
 
   function assetStatusLabel(value) {
@@ -264,23 +301,26 @@ Item {
     nearbyRadiusMeters = radius;
     searchBusy = true;
 
-    // Wubao is in UTM zone 49N. Transforming both geometries to EPSG:32649
-    // gives a meter-based distance filter while the master data remains
-    // CGCS2000/EPSG:4490.
+    // Pick the UTM zone from the current GNSS position instead of hard-coding
+    // one deployment area. The search radii are short enough for this local
+    // projected distance to remain stable near normal zone boundaries.
     const lon = Number(info.longitude);
     const lat = Number(info.latitude);
-    const distanceExpression = "distance(" + "transform($geometry, 'EPSG:4490', 'EPSG:32649'), " + "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', 'EPSG:32649')" + ") <= " + radius;
+    const utmZone = Math.max(1, Math.min(60, Math.floor((lon + 180) / 6) + 1));
+    const utmEpsg = (lat >= 0 ? 32600 : 32700) + utmZone;
+    const distanceCrs = "EPSG:" + utmEpsg;
+    const distanceExpression = "distance(" + "transform($geometry, 'EPSG:4490', '" + distanceCrs + "'), " + "transform(make_point(" + lon + ", " + lat + "), 'EPSG:4326', '" + distanceCrs + "')" + ") <= " + radius;
     const expression = applyAssetFilters(distanceExpression);
 
     const iterator = QfLayerUtils.createFeatureIteratorFromExpression(layer, expression);
-    const utm49 = QfCoordinateReferenceSystemUtils.fromDescription("EPSG:32649");
-    const currentUtm = QfGeometryUtils.reprojectPoint(QfGeometryUtils.point(lon, lat), QfCoordinateReferenceSystemUtils.wgs84Crs(), utm49);
+    const distanceCrsObject = QfCoordinateReferenceSystemUtils.fromDescription(distanceCrs);
+    const currentUtm = QfGeometryUtils.reprojectPoint(QfGeometryUtils.point(lon, lat), QfCoordinateReferenceSystemUtils.wgs84Crs(), distanceCrsObject);
     const matches = [];
 
     while (iterator.hasNext() && matches.length < 100) {
       const feature = iterator.next();
       const center = QfGeometryUtils.centroid(feature.geometry);
-      const centerUtm = QfGeometryUtils.reprojectPoint(center, layer.crs, utm49);
+      const centerUtm = QfGeometryUtils.reprojectPoint(center, layer.crs, distanceCrsObject);
       const dx = Number(centerUtm.x) - Number(currentUtm.x);
       const dy = Number(centerUtm.y) - Number(currentUtm.y);
       matches.push({
@@ -476,14 +516,21 @@ Item {
 
   QfToolButton {
     id: waterworksButton
-    objectName: "wubaoWaterworksButton"
+    objectName: "waterworksInspectionButton"
     text: "水"
     font.bold: true
     Material.foreground: QfTheme.toolButtonColor
     bgcolor: QfTheme.toolButtonBackgroundColor
     round: true
 
-    onClicked: waterworksDialog.open()
+    onClicked: {
+      loadAssetTypeOptions()
+      waterworksDialog.open()
+    }
+  }
+
+  ListModel {
+    id: assetTypeOptions
   }
 
   ListModel {
@@ -492,9 +539,9 @@ Item {
 
   QfDialog {
     id: waterworksDialog
-    objectName: "wubaoWaterworksDialog"
+    objectName: "waterworksInspectionDialog"
     parent: mainWindow.contentItem
-    title: "吴堡供水巡检"
+    title: "供水巡检"
     modal: true
     standardButtons: Dialog.Close
 
@@ -557,44 +604,7 @@ Item {
         ComboBox {
           id: assetTypeFilter
           Layout.fillWidth: true
-          model: [
-            {
-              text: "全部类型",
-              value: ""
-            },
-            {
-              text: "阀门井",
-              value: "valve_well"
-            },
-            {
-              text: "阀门",
-              value: "valve"
-            },
-            {
-              text: "压力表",
-              value: "pressure_gauge"
-            },
-            {
-              text: "消防栓",
-              value: "hydrant"
-            },
-            {
-              text: "排气阀",
-              value: "air_valve"
-            },
-            {
-              text: "排泥阀",
-              value: "drain_valve"
-            },
-            {
-              text: "水表",
-              value: "meter"
-            },
-            {
-              text: "其他",
-              value: "other"
-            }
-          ]
+          model: assetTypeOptions
           textRole: "text"
           currentIndex: 0
         }
