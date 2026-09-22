@@ -4,12 +4,7 @@ import importlib.util
 import unittest
 from pathlib import Path
 
-
-PROFILE_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "tools"
-    / "project_profile.py"
-)
+PROFILE_PATH = Path(__file__).resolve().parents[1] / "tools" / "project_profile.py"
 spec = importlib.util.spec_from_file_location("project_profile", PROFILE_PATH)
 profile = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -46,7 +41,6 @@ class ProjectProfileTests(unittest.TestCase):
                 f"duplicate stored value in {key}",
             )
 
-
     def test_default_view_extent_is_valid(self) -> None:
         xmin, ymin, xmax, ymax = profile.DEFAULT_VIEW_EXTENT
         self.assertLess(xmin, xmax)
@@ -58,9 +52,7 @@ class ProjectProfileTests(unittest.TestCase):
 
     def test_layer_groups_cover_all_business_layers_once(self) -> None:
         grouped = [
-            layer
-            for layers in profile.LAYER_GROUPS.values()
-            for layer in layers
+            layer for layers in profile.LAYER_GROUPS.values() for layer in layers
         ]
         self.assertEqual(set(grouped), set(profile.LAYERS))
         self.assertEqual(len(grouped), len(set(grouped)))
