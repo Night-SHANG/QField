@@ -17,7 +17,7 @@ spec.loader.exec_module(module)
 class GeoPackageSchemaTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
-        self.path = Path(self.tempdir.name) / "wubao-waterworks.gpkg"
+        self.path = Path(self.tempdir.name) / "waterworks-inspection.gpkg"
         module.create_geopackage(self.path)
 
     def tearDown(self) -> None:
@@ -35,6 +35,7 @@ class GeoPackageSchemaTests(unittest.TestCase):
 
     def test_required_business_tables_exist(self) -> None:
         expected = {
+            "asset_types",
             "assets_point",
             "pipelines",
             "inspections",
@@ -49,6 +50,49 @@ class GeoPackageSchemaTests(unittest.TestCase):
                 )
             }
         self.assertTrue(expected.issubset(tables))
+
+    def test_project_name_is_generic(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            metadata = dict(db.execute("SELECT key, value FROM app_metadata"))
+
+        self.assertEqual(metadata["project_name"], "供水巡检")
+        self.assertEqual(metadata["area"], "")
+
+    def test_asset_types_are_data_driven_and_enforced(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            seeded = dict(
+                db.execute(
+                    "SELECT code, label FROM asset_types WHERE active=1 ORDER BY sort_order"
+                )
+            )
+            self.assertEqual(seeded["valve_well"], "阀门井")
+            self.assertEqual(seeded["pressure_gauge"], "压力表")
+
+            db.execute(
+                """
+                INSERT INTO asset_types(
+                    code, label, symbol_shape, symbol_color, symbol_size, sort_order
+                ) VALUES ('sensor', '水质传感器', 'triangle', '#455A64', 4.5, 80)
+                """
+            )
+            db.execute(
+                """
+                INSERT INTO assets_point(name, asset_type)
+                VALUES ('自定义类型测试', 'sensor')
+                """
+            )
+
+            db.execute("UPDATE asset_types SET active=0 WHERE code='sensor'")
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO assets_point(name, asset_type)
+                    VALUES ('停用类型测试', 'sensor')
+                    """
+                )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute("DELETE FROM asset_types WHERE code='sensor'")
 
     def test_geometries_use_cgcs2000(self) -> None:
         with sqlite3.connect(self.path) as db:
