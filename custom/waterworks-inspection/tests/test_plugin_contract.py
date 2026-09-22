@@ -38,7 +38,7 @@ class PluginContractTests(unittest.TestCase):
 
     def test_nearby_lookup_is_meter_based_and_location_independent(self) -> None:
         self.assertIn("nearbyRadiusMeters", self.text)
-        self.assertIn("function loadNearbyObjects(radiusMeters)", self.text)
+        self.assertIn("function loadNearbyObjects(radiusMeters, objectKind)", self.text)
         self.assertIn("QfExpressionEvaluator", self.text)
         self.assertIn("nearbyDistanceEvaluator.evaluate(distanceValueExpression)", self.text)
         self.assertIn("utmZone", self.text)
@@ -50,8 +50,9 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("distanceValueExpression", self.text)
         self.assertIn("transform($geometry", self.text)
         self.assertIn('objectKind === "pipeline" ? pipelineLayer() : assetLayer()', self.text)
-        self.assertIn('text: "附近点位"', self.text)
-        self.assertIn('text: "附近管线"', self.text)
+        self.assertIn('text: "附近"', self.text)
+        self.assertIn('text: "点位"', self.text)
+        self.assertIn('text: "管线"', self.text)
         self.assertIn('function loadNearbyKind(objectKind)', self.text)
         self.assertNotIn("function loadNearbyAssets(radiusMeters)", self.text)
 
@@ -82,7 +83,7 @@ class PluginContractTests(unittest.TestCase):
         self.assertNotIn("advancedMode", self.text)
         self.assertNotIn('text: "高级功能"', self.text)
         self.assertNotIn('text: "进入高级模式"', self.text)
-        self.assertIn('text: "还没有打开供水数据"', self.text)
+        self.assertIn('text: "正在准备供水巡检地图"', self.text)
         self.assertIn('text: "打开供水数据"', self.text)
 
     def test_pipeline_capture_reuses_qfield_digitizing(self) -> None:
@@ -94,10 +95,29 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("geometry.asQgsGeometry()", self.text)
         self.assertIn('text: "新建管线"', self.text)
 
-    def test_search_controls_are_collapsed_by_default(self) -> None:
-        self.assertIn("property bool searchPanelVisible: false", self.text)
-        self.assertIn('text: searchPanelVisible ? "收起查找" : "查找"', self.text)
-        self.assertIn("visible: searchPanelVisible", self.text)
+    def test_map_first_navigation_replaces_patrol_dialog(self) -> None:
+        self.assertIn('objectName: "waterworksBottomActionBar"', self.text)
+        self.assertIn('text: "查找"', self.text)
+        self.assertIn('text: "附近"', self.text)
+        self.assertIn('text: "新增"', self.text)
+        self.assertIn('text: "更多"', self.text)
+        self.assertNotIn('id: waterworksButton', self.text)
+        self.assertNotIn('id: waterworksDialog', self.text)
+
+    def test_persistent_view_edit_lock_guards_writes(self) -> None:
+        self.assertIn("property bool editEnabled: false", self.text)
+        self.assertIn("function editAllowed(actionName)", self.text)
+        self.assertIn("function setEditEnabled(enabled)", self.text)
+        self.assertIn('text: workerAppSettings.editEnabled ? "编辑模式" : "查看模式"', self.text)
+        self.assertIn('enabled: workerAppSettings.editEnabled', self.text)
+        for action in ("新增点位", "新建管线", "巡检记录", "维修记录", "添加附件"):
+            self.assertIn(f'editAllowed("{action}")', self.text)
+
+    def test_nearby_results_are_visible_and_highlighted(self) -> None:
+        self.assertIn('objectName: "waterworksBrowserDrawer"', self.text)
+        self.assertIn("QfLayerUtils.selectFeaturesByExpression(layer, expression)", self.text)
+        self.assertIn('text: assetSearchResults.count > 0', self.text)
+        self.assertIn("delegate: queryResultDelegate", self.text)
 
     def test_first_launch_has_visible_yulin_fallback_map(self) -> None:
         self.assertIn('"basemap": "custom"', self.text)
@@ -163,7 +183,7 @@ class PluginContractTests(unittest.TestCase):
     def test_worker_mode_reuses_native_gnss_button(self) -> None:
         self.assertIn('iface.findItemByObjectName("gnssButton")', self.text)
         self.assertIn("gnssButton.clicked()", self.text)
-        self.assertIn('text: "定位到我"', self.text)
+        self.assertIn('text: "定位"', self.text)
 
     def test_navigation_reuses_qfield_navigation(self) -> None:
         self.assertIn('iface.findItemByObjectName("navigation")', self.text)
