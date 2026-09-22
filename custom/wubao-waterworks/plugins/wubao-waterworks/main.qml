@@ -20,6 +20,7 @@ Item {
 
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
+  readonly property var repairLayerNames: ["维修记录", "repairs"]
   property bool searchBusy: false
   property int nearbyRadiusMeters: 500
 
@@ -40,6 +41,16 @@ Item {
   function inspectionLayer() {
     for (let i = 0; i < inspectionLayerNames.length; i++) {
       const layers = qgisProject.mapLayersByName(inspectionLayerNames[i])
+      if (layers && layers.length > 0) {
+        return layers[0]
+      }
+    }
+    return null
+  }
+
+  function repairLayer() {
+    for (let i = 0; i < repairLayerNames.length; i++) {
+      const layers = qgisProject.mapLayersByName(repairLayerNames[i])
       if (layers && layers.length > 0) {
         return layers[0]
       }
@@ -110,7 +121,9 @@ Item {
     }
 
     const statusValue = selectedAssetStatus()
-    if (statusValue.length > 0) {
+    if (statusValue === "problem") {
+      clauses.push("\"status\" IN ('attention', 'repair')")
+    } else if (statusValue.length > 0) {
       clauses.push("\"status\" = '" + escapeExpressionString(statusValue) + "'")
     }
 
@@ -403,6 +416,30 @@ Item {
     overlayFeatureFormDrawer.open()
   }
 
+  function createRepair(assetId) {
+    const layer = repairLayer()
+    if (!layer) {
+      mainWindow.displayToast("当前项目缺少“维修记录”图层")
+      return
+    }
+    if (!assetId) {
+      mainWindow.displayToast("无法确定维修设施")
+      return
+    }
+    if (!overlayFeatureFormDrawer) {
+      mainWindow.displayToast("无法打开维修表单")
+      return
+    }
+
+    const feature = QfFeatureUtils.createFeature(layer)
+    feature.setAttribute("asset_id", assetId)
+
+    overlayFeatureFormDrawer.featureModel.feature = feature
+    overlayFeatureFormDrawer.state = "Add"
+    waterworksDialog.close()
+    overlayFeatureFormDrawer.open()
+  }
+
   QfToolButton {
     id: waterworksButton
     objectName: "wubaoWaterworksButton"
@@ -506,6 +543,7 @@ Item {
           Layout.fillWidth: true
           model: [
             { text: "全部状态", value: "" },
+            { text: "需处理", value: "problem" },
             { text: "正常", value: "normal" },
             { text: "需关注", value: "attention" },
             { text: "待维修", value: "repair" },
@@ -622,27 +660,37 @@ Item {
               Layout.fillWidth: true
 
               Button {
+                Layout.fillWidth: true
                 text: "查看"
                 onClicked: plugin.openAsset(assetId, false)
               }
 
               Button {
+                Layout.fillWidth: true
                 text: "编辑"
                 onClicked: plugin.openAsset(assetId, true)
               }
 
               Button {
+                Layout.fillWidth: true
                 text: "导航"
                 onClicked: plugin.navigateToAsset(assetId)
               }
+            }
+
+            RowLayout {
+              Layout.fillWidth: true
 
               Button {
+                Layout.fillWidth: true
                 text: "巡检"
                 onClicked: plugin.createInspection(assetId)
               }
 
-              Item {
+              Button {
                 Layout.fillWidth: true
+                text: "维修"
+                onClicked: plugin.createRepair(assetId)
               }
             }
           }
