@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
 import QtCore
+import "TiandituConfig.js" as TiandituConfig
 
 import org.qgis
 import org.qfield.core
@@ -49,6 +50,14 @@ Item {
   // EPSG:3857 so a first launch never opens to an undefined/empty extent.
   readonly property string fallbackBasemapSource: "type=xyz&tilePixelRatio=1&url=https://tile.openstreetmap.org/%7Bz%7D/%7Bx%7D/%7By%7D.png&zmax=19&zmin=0&crs=EPSG3857"
   readonly property string yulinDefaultExtent: "POLYGON((11933449 4411266,12389859 4411266,12389859 4807984,11933449 4807984,11933449 4411266))"
+  readonly property var managedBasemapLayerNames: [
+    "Basemap",
+    "供水底图 OSM",
+    "供水底图 天地图矢量",
+    "供水底图 天地图矢量注记",
+    "供水底图 天地图影像",
+    "供水底图 天地图影像注记"
+  ]
 
   Settings {
     id: workerAppSettings
@@ -56,6 +65,8 @@ Item {
     property bool loadProjectOnLaunch: true
     property bool showMyLocationMarker: true
     property bool editEnabled: false
+    property string basemapMode: "osm"
+    property string tiandituToken: ""
   }
   property int nearbyRadiusMeters: 500
   property real accuracyWarningMeters: 15
@@ -67,6 +78,8 @@ Item {
       simplifyInterface();
       if (!iface.hasProjectOnLaunch() && (!qgisProject || !qgisProject.fileName)) {
         createDefaultWaterworksProject();
+      } else if (qgisProject && qgisProject.fileName) {
+        applyBasemap(workerAppSettings.basemapMode, false);
       }
     });
   }
@@ -80,6 +93,7 @@ Item {
         ensureBusinessLayers(path);
         refreshProjectState();
         simplifyInterface();
+        applyBasemap(workerAppSettings.basemapMode, false);
         activateAndCenterLocation();
       });
     }
@@ -378,6 +392,136 @@ Item {
     if (welcomeLocalProjects) {
       welcomeLocalProjects.label = "打开供水数据";
     }
+  }
+
+  function bundledTiandituToken() {
+    return String(TiandituConfig.token() || "").trim();
+  }
+
+  function effectiveTiandituToken() {
+    const localToken = String(workerAppSettings.tiandituToken || "").trim();
+    return localToken.length > 0 ? localToken : bundledTiandituToken();
+  }
+
+  function hasBundledTiandituToken() {
+    return bundledTiandituToken().length > 0;
+  }
+
+  function hasTiandituToken() {
+    return effectiveTiandituToken().length > 0;
+  }
+
+  function tiandituXyzSource(serviceName) {
+    const token = effectiveTiandituToken();
+    if (!token) {
+      return "";
+    }
+
+    const layerName = String(serviceName).split("_")[0];
+    const url = "https://t0.tianditu.gov.cn/" + serviceName + "/wmts" +
+                "?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
+                "&LAYER=" + layerName +
+                "&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles" +
+                "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}" +
+                "&tk=" + encodeURIComponent(token);
+    return "type=xyz&tilePixelRatio=1&url=" + encodeURIComponent(url) +
+           "&zmin=0&zmax=18&crs=EPSG3857";
+  }
+
+  function removeManagedBasemapLayers() {
+    if (!qgisProject) {
+      return;
+    }
+    for (let i = 0; i < managedBasemapLayerNames.length; i++) {
+      const layers = qgisProject.mapLayersByName(managedBasemapLayerNames[i]);
+      if (!layers) {
+        continue;
+      }
+      while (layers.length > 0) {
+        QfProjectUtils.removeMapLayer(qgisProject, layers[0]);
+      }
+    }
+  }
+
+  function addRuntimeBasemapLayer(source, name) {
+    const layer = QfLayerUtils.loadRasterLayer(source, name, "wms");
+    if (!layer || !layer.isValid) {
+      return false;
+    }
+    return QfProjectUtils.addMapLayerAtBottom(qgisProject, layer);
+  }
+
+  function applyBasemap(mode, showToast) {
+    if (!qgisProject || !qgisProject.fileName) {
+      return false;
+    }
+
+    let requestedMode = mode || "osm";
+    if (requestedMode !== "osm" && !hasTiandituToken()) {
+      workerAppSettings.basemapMode = "osm";
+      requestedMode = "osm";
+      if (showToast) {
+        mainWindow.displayToast("请先配置天地图密钥，已继续使用 OSM");
+      }
+    }
+
+    removeManagedBasemapLayers();
+
+    let ok = false;
+    if (requestedMode === "tdt-vector") {
+      // Add annotation first, then base. Both are inserted at the bottom,
+      // leaving labels above the base and all business layers above both.
+      const labelsOk = addRuntimeBasemapLayer(tiandituXyzSource("cva_w"), "供水底图 天地图矢量注记");
+      const baseOk = addRuntimeBasemapLayer(tiandituXyzSource("vec_w"), "供水底图 天地图矢量");
+      ok = labelsOk && baseOk;
+    } else if (requestedMode === "tdt-imagery") {
+      const labelsOk = addRuntimeBasemapLayer(tiandituXyzSource("cia_w"), "供水底图 天地图影像注记");
+      const baseOk = addRuntimeBasemapLayer(tiandituXyzSource("img_w"), "供水底图 天地图影像");
+      ok = labelsOk && baseOk;
+    } else {
+      ok = addRuntimeBasemapLayer(fallbackBasemapSource, "供水底图 OSM");
+      requestedMode = "osm";
+    }
+
+    if (!ok && requestedMode !== "osm") {
+      removeManagedBasemapLayers();
+      ok = addRuntimeBasemapLayer(fallbackBasemapSource, "供水底图 OSM");
+      requestedMode = "osm";
+      if (showToast) {
+        mainWindow.displayToast("天地图加载失败，已切回 OSM");
+      }
+    }
+
+    if (ok) {
+      workerAppSettings.basemapMode = requestedMode;
+      if (showToast) {
+        const label = requestedMode === "tdt-vector"
+          ? "天地图矢量"
+          : (requestedMode === "tdt-imagery" ? "天地图影像" : "OSM");
+        mainWindow.displayToast("已切换到底图：" + label);
+      }
+    }
+    return ok;
+  }
+
+  function saveLocalTiandituToken(value) {
+    const token = String(value || "").trim();
+    if (!token) {
+      mainWindow.displayToast("请输入天地图密钥");
+      return false;
+    }
+    workerAppSettings.tiandituToken = token;
+    mainWindow.displayToast("天地图密钥已保存在本机，不会在界面明文显示");
+    return true;
+  }
+
+  function clearLocalTiandituToken() {
+    workerAppSettings.tiandituToken = "";
+    workerAppSettings.basemapMode = "osm";
+    applyBasemap("osm", false);
+    mainWindow.displayToast(hasBundledTiandituToken()
+                            ? "已清除本机密钥，将继续使用构建时安全配置"
+                            : "已清除本机天地图密钥并切回 OSM");
   }
 
   function chooseWaterworksProject() {
@@ -2796,7 +2940,7 @@ Item {
     modal: false
     interactive: true
     width: mainWindow.width
-    height: Math.min(330 + mainWindow.sceneBottomMargin, mainWindow.height * 0.55)
+    height: Math.min(520 + mainWindow.sceneBottomMargin, mainWindow.height * 0.75)
 
     background: Rectangle {
       color: QfTheme.mainBackgroundColor
@@ -2835,6 +2979,80 @@ Item {
         text: plugin.positionText()
         color: QfTheme.secondaryTextColor
         wrapMode: Text.WordWrap
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "底图"
+        font.bold: true
+        color: QfTheme.mainTextColor
+      }
+
+      ComboBox {
+        id: basemapSelector
+        Layout.fillWidth: true
+        model: [
+          {"text":"OSM（备用）","value":"osm"},
+          {"text":"天地图矢量","value":"tdt-vector"},
+          {"text":"天地图影像","value":"tdt-imagery"}
+        ]
+        textRole: "text"
+        currentIndex: workerAppSettings.basemapMode === "tdt-vector"
+                      ? 1
+                      : (workerAppSettings.basemapMode === "tdt-imagery" ? 2 : 0)
+        onActivated: index => {
+          const requested = model[index].value;
+          if (!plugin.applyBasemap(requested, true)) {
+            currentIndex = workerAppSettings.basemapMode === "tdt-vector"
+                           ? 1
+                           : (workerAppSettings.basemapMode === "tdt-imagery" ? 2 : 0);
+          }
+        }
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: plugin.hasTiandituToken()
+              ? (plugin.hasBundledTiandituToken()
+                 ? "天地图密钥：已由构建安全配置提供"
+                 : "天地图密钥：本机已配置（不显示明文）")
+              : "天地图密钥：尚未配置"
+        color: QfTheme.secondaryTextColor
+        wrapMode: Text.WordWrap
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        visible: !plugin.hasBundledTiandituToken()
+        spacing: 6
+
+        TextField {
+          id: tiandituTokenField
+          Layout.fillWidth: true
+          echoMode: TextInput.Password
+          placeholderText: workerAppSettings.tiandituToken.length > 0
+                           ? "本机已配置，可重新粘贴覆盖"
+                           : "粘贴天地图 tk"
+          selectByMouse: true
+        }
+
+        Button {
+          text: "保存"
+          onClicked: {
+            if (plugin.saveLocalTiandituToken(tiandituTokenField.text)) {
+              tiandituTokenField.clear();
+            }
+          }
+        }
+
+        Button {
+          visible: workerAppSettings.tiandituToken.length > 0
+          text: "清除"
+          onClicked: {
+            tiandituTokenField.clear();
+            plugin.clearLocalTiandituToken();
+          }
+        }
       }
 
       Button {
