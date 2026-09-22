@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
+import QtCore
 
 import org.qgis
 import org.qfield.core
@@ -28,17 +29,21 @@ Item {
   property bool searchBusy: false
   property bool advancedMode: false
   property bool waterworksProjectReady: false
+
+  Settings {
+    id: workerAppSettings
+    category: "QField"
+    property bool loadProjectOnLaunch: true
+  }
   property int nearbyRadiusMeters: 500
   property real accuracyWarningMeters: 15
 
   Component.onCompleted: {
     iface.addItemToPluginsToolbar(waterworksButton);
+    workerAppSettings.loadProjectOnLaunch = true;
     refreshProjectState();
     Qt.callLater(function () {
       applyWorkerMode(false);
-      if (waterworksProjectReady) {
-        waterworksDialog.open();
-      }
     });
   }
 
@@ -46,12 +51,10 @@ Item {
     target: iface
 
     function onLoadProjectEnded(path, name) {
+      workerAppSettings.loadProjectOnLaunch = true;
       Qt.callLater(function () {
         refreshProjectState();
         applyWorkerMode(false);
-        if (waterworksProjectReady) {
-          waterworksDialog.open();
-        }
       });
     }
   }
@@ -719,7 +722,7 @@ Item {
   QfToolButton {
     id: waterworksButton
     objectName: "waterworksInspectionButton"
-    text: "水"
+    text: "巡"
     font.bold: true
     Material.foreground: QfTheme.toolButtonColor
     bgcolor: QfTheme.toolButtonBackgroundColor
