@@ -97,9 +97,33 @@ class ProjectProfileTests(unittest.TestCase):
             profile.READ_ONLY_FIELDS["assets_point"],
         )
         self.assertIn(
+            "last_inspection_at",
+            profile.READ_ONLY_FIELDS["pipelines"],
+        )
+        self.assertIn(
             "position_accuracy_m",
             profile.READ_ONLY_FIELDS["inspections"],
         )
+
+    def test_pipeline_relations_reuse_shared_history_tables(self) -> None:
+        relation_ids = {relation[0] for relation in profile.RELATIONS}
+        self.assertTrue(
+            {
+                "pipeline_inspections",
+                "pipeline_repairs",
+                "pipeline_attachments",
+            }.issubset(relation_ids)
+        )
+        self.assertTrue(
+            {
+                "pipeline_inspections",
+                "pipeline_repairs",
+                "pipeline_attachments",
+            }.issubset(set(profile.FORM_RELATIONS["pipelines"]))
+        )
+        self.assertIn(("inspections", "pipeline_id"), profile.RELATION_REFERENCE_FIELDS)
+        self.assertIn(("repairs", "pipeline_id"), profile.RELATION_REFERENCE_FIELDS)
+        self.assertIn(("attachments", "pipeline_id"), profile.RELATION_REFERENCE_FIELDS)
 
     def test_attachment_widgets_use_relative_storage(self) -> None:
         self.assertEqual(
