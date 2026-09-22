@@ -359,6 +359,119 @@ class GeoPackageSchemaTests(unittest.TestCase):
                 "normal",
             )
 
+    def test_pipeline_inspection_and_repair_lifecycle(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            pipeline_id = "abababab-abab-abab-abab-abababababab"
+            db.execute(
+                """
+                INSERT INTO pipelines(id, name)
+                VALUES (?, ?)
+                """,
+                (pipeline_id, "DN300 测试管线"),
+            )
+
+            db.execute(
+                """
+                INSERT INTO inspections(pipeline_id, inspected_at, result)
+                VALUES (?, '2026-09-22 09:30:00', 'repair')
+                """,
+                (pipeline_id,),
+            )
+            row = db.execute(
+                "SELECT last_inspection_at, status FROM pipelines WHERE id=?",
+                (pipeline_id,),
+            ).fetchone()
+            self.assertEqual(row, ("2026-09-22 09:30:00", "repair"))
+
+            repair_id = "cdcdcdcd-cdcd-cdcd-cdcd-cdcdcdcdcdcd"
+            db.execute(
+                """
+                INSERT INTO repairs(id, pipeline_id, result)
+                VALUES (?, ?, 'resolved')
+                """,
+                (repair_id, pipeline_id),
+            )
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM pipelines WHERE id=?",
+                    (pipeline_id,),
+                ).fetchone()[0],
+                "attention",
+            )
+
+            db.execute(
+                """
+                INSERT INTO inspections(pipeline_id, result)
+                VALUES (?, 'normal')
+                """,
+                (pipeline_id,),
+            )
+            self.assertEqual(
+                db.execute(
+                    "SELECT status FROM pipelines WHERE id=?",
+                    (pipeline_id,),
+                ).fetchone()[0],
+                "normal",
+            )
+
+    def test_inspection_and_repair_require_exactly_one_business_parent(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            asset_id = "12121212-1212-1212-1212-121212121212"
+            pipeline_id = "34343434-3434-3434-3434-343434343434"
+            db.execute(
+                "INSERT INTO assets_point(id, name) VALUES (?, '父对象测试点')",
+                (asset_id,),
+            )
+            db.execute(
+                "INSERT INTO pipelines(id, name) VALUES (?, '父对象测试管线')",
+                (pipeline_id,),
+            )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute("INSERT INTO inspections(result) VALUES ('normal')")
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO inspections(asset_id, pipeline_id, result)
+                    VALUES (?, ?, 'normal')
+                    """,
+                    (asset_id, pipeline_id),
+                )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute("INSERT INTO repairs(result) VALUES ('unresolved')")
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO repairs(asset_id, pipeline_id, result)
+                    VALUES (?, ?, 'unresolved')
+                    """,
+                    (asset_id, pipeline_id),
+                )
+
+    def test_pipeline_can_own_direct_attachment(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            pipeline_id = "56565656-5656-5656-5656-565656565656"
+            db.execute(
+                "INSERT INTO pipelines(id, name) VALUES (?, '附件测试管线')",
+                (pipeline_id,),
+            )
+            db.execute(
+                """
+                INSERT INTO attachments(
+                    pipeline_id, media_type, photo_path
+                ) VALUES (?, 'photo', 'attachments/pipelines/example.jpg')
+                """,
+                (pipeline_id,),
+            )
+            stored = db.execute(
+                "SELECT pipeline_id FROM attachments WHERE photo_path LIKE '%example.jpg'"
+            ).fetchone()[0]
+
+        self.assertEqual(stored, pipeline_id)
+
     def test_attention_inspection_does_not_downgrade_repair_status(self) -> None:
         with sqlite3.connect(self.path) as db:
             asset_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
