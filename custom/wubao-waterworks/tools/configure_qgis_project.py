@@ -30,8 +30,10 @@ def require_qgis():
             QgsCoordinateReferenceSystem,
             QgsDefaultValue,
             QgsEditorWidgetSetup,
+            QgsExpression,
             QgsLineSymbol,
             QgsMarkerSymbol,
+            QgsOptionalExpression,
             QgsPalLayerSettings,
             QgsProject,
             QgsProperty,
@@ -63,8 +65,10 @@ def require_qgis():
         "QgsCoordinateReferenceSystem": QgsCoordinateReferenceSystem,
         "QgsDefaultValue": QgsDefaultValue,
         "QgsEditorWidgetSetup": QgsEditorWidgetSetup,
+        "QgsExpression": QgsExpression,
         "QgsLineSymbol": QgsLineSymbol,
         "QgsMarkerSymbol": QgsMarkerSymbol,
+        "QgsOptionalExpression": QgsOptionalExpression,
         "QgsPalLayerSettings": QgsPalLayerSettings,
         "QgsProject": QgsProject,
         "QgsProperty": QgsProperty,
@@ -376,6 +380,8 @@ def configure_forms(api, layers, relations):
     QgsAttributeEditorContainer = api["QgsAttributeEditorContainer"]
     QgsAttributeEditorField = api["QgsAttributeEditorField"]
     QgsAttributeEditorRelation = api["QgsAttributeEditorRelation"]
+    QgsExpression = api["QgsExpression"]
+    QgsOptionalExpression = api["QgsOptionalExpression"]
 
     for table, layer in layers.items():
         config = layer.editFormConfig()
@@ -396,6 +402,28 @@ def configure_forms(api, layers, relations):
                     details,
                 )
             )
+
+        if table == "attachments":
+            for field_name, (media_type, label) in (
+                profile.ATTACHMENT_MEDIA_FIELDS.items()
+            ):
+                media_group = QgsAttributeEditorContainer(label, details)
+                media_group.setVisibilityExpression(
+                    QgsOptionalExpression(
+                        QgsExpression(
+                            f'"media_type" = \'{media_type}\''
+                        )
+                    )
+                )
+                media_group.addChildElement(
+                    QgsAttributeEditorField(
+                        field_name,
+                        field_index(layer, field_name),
+                        media_group,
+                    )
+                )
+                details.addChildElement(media_group)
+
         config.addTab(details)
 
         relation_ids = profile.FORM_RELATIONS.get(table, [])
