@@ -1272,22 +1272,6 @@ Item {
     project: qgisProject
   }
 
-  QfToolButton {
-    id: waterworksButton
-    objectName: "waterworksInspectionButton"
-    text: "巡"
-    font.bold: true
-    Material.foreground: QfTheme.toolButtonColor
-    bgcolor: QfTheme.toolButtonBackgroundColor
-    round: true
-
-    onClicked: {
-      refreshProjectState()
-      simplifyInterface()
-      waterworksDialog.open()
-    }
-  }
-
   ListModel {
     id: assetTypeOptions
   }
@@ -1498,28 +1482,516 @@ Item {
     }
   }
 
-  QfDialog {
-    id: waterworksDialog
-    objectName: "waterworksInspectionDialog"
-    parent: mainWindow.contentItem
-    title: "供水巡检"
-    modal: true
-    standardButtons: Dialog.Close
 
-    width: Math.min(mainWindow.width - 32, 560)
-    height: Math.min(mainWindow.height - 48, 680)
-    x: (mainWindow.width - width) / 2
-    y: (mainWindow.height - height) / 2
+  Component {
+    id: queryResultDelegate
+
+    Rectangle {
+      required property string objectKind
+      required property string assetId
+      required property string assetName
+      required property string assetCode
+      required property string assetType
+      required property string assetStatus
+      required property string assetLastInspection
+      required property string assetDetail
+      required property int assetDistance
+
+      width: ListView.view ? ListView.view.width : 0
+      height: resultColumn.implicitHeight + 20
+      radius: 10
+      color: QfTheme.groupBoxBackgroundColor
+      border.color: QfTheme.controlBorderColor
+
+      ColumnLayout {
+        id: resultColumn
+        anchors {
+          left: parent.left
+          right: parent.right
+          top: parent.top
+          margins: 10
+        }
+        spacing: 4
+
+        RowLayout {
+          Layout.fillWidth: true
+
+          Label {
+            Layout.fillWidth: true
+            text: assetName
+            font.bold: true
+            color: QfTheme.mainTextColor
+            elide: Text.ElideRight
+          }
+
+          Label {
+            text: assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : ""
+            color: QfTheme.secondaryTextColor
+          }
+        }
+
+        Label {
+          Layout.fillWidth: true
+          text: (assetDistance >= 0 ? assetDistance + " m  ·  " : "") +
+                (assetCode.length > 0 ? "编号 " + assetCode + "  ·  " : "") +
+                (assetType.length > 0 ? (objectKind === "asset" ? plugin.assetTypeLabel(assetType) : assetType) : "")
+          color: QfTheme.secondaryTextColor
+          elide: Text.ElideRight
+        }
+
+        Label {
+          Layout.fillWidth: true
+          visible: assetDetail.length > 0 || assetLastInspection.length > 0
+          text: (assetDetail.length > 0 ? assetDetail : "") +
+                (assetDetail.length > 0 && assetLastInspection.length > 0 ? "  ·  " : "") +
+                (assetLastInspection.length > 0 ? "最近巡检 " + assetLastInspection : "")
+          color: QfTheme.secondaryTextColor
+          elide: Text.ElideRight
+        }
+
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: 6
+
+          Button {
+            Layout.fillWidth: true
+            text: "地图"
+            onClicked: plugin.focusObjectOnMap(objectKind, assetId, true)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "详情"
+            onClicked: plugin.openObject(objectKind, assetId, false)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            visible: objectKind === "asset"
+            text: "导航"
+            onClicked: plugin.navigateToAsset(assetId)
+          }
+        }
+
+        RowLayout {
+          Layout.fillWidth: true
+          visible: workerAppSettings.editEnabled
+          spacing: 6
+
+          Button {
+            Layout.fillWidth: true
+            text: "编辑"
+            onClicked: plugin.openObject(objectKind, assetId, true)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "巡检"
+            onClicked: plugin.createInspection(assetId, objectKind)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "维修"
+            onClicked: plugin.createRepair(assetId, objectKind)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "附件"
+            onClicked: plugin.createAttachment(assetId, objectKind)
+          }
+        }
+      }
+    }
+  }
+
+  Button {
+    id: editModeButton
+    objectName: "waterworksEditModeButton"
+    parent: mainWindow.contentItem
+    z: 90
+    visible: plugin.waterworksProjectReady && !assetEntryDialog.visible && !pipelineEntryDialog.visible
+    anchors {
+      top: parent.top
+      right: parent.right
+      topMargin: mainWindow.sceneTopMargin + 10
+      rightMargin: mainWindow.sceneRightMargin + 10
+    }
+    text: workerAppSettings.editEnabled ? "编辑模式" : "查看模式"
+    font.bold: true
+    onClicked: plugin.setEditEnabled(!workerAppSettings.editEnabled)
+  }
+
+  Button {
+    id: locationMapButton
+    objectName: "waterworksLocationButton"
+    parent: mainWindow.contentItem
+    z: 90
+    visible: plugin.waterworksProjectReady && !browserDrawer.opened && !addDrawer.opened && !moreDrawer.opened &&
+             !assetEntryDialog.visible && !pipelineEntryDialog.visible
+    anchors {
+      right: parent.right
+      bottom: bottomActionBar.top
+      rightMargin: mainWindow.sceneRightMargin + 12
+      bottomMargin: 10
+    }
+    text: "定位"
+    onClicked: plugin.centerOnCurrentPosition()
+  }
+
+  Rectangle {
+    id: bottomActionBar
+    objectName: "waterworksBottomActionBar"
+    parent: mainWindow.contentItem
+    z: 80
+    visible: plugin.waterworksProjectReady && !assetEntryDialog.visible && !pipelineEntryDialog.visible
+    anchors {
+      left: parent.left
+      right: parent.right
+      bottom: parent.bottom
+    }
+    height: 60 + mainWindow.sceneBottomMargin
+    color: QfTheme.mainBackgroundColor
+    border.color: QfTheme.controlBorderColor
+
+    RowLayout {
+      anchors {
+        left: parent.left
+        right: parent.right
+        top: parent.top
+        leftMargin: mainWindow.sceneLeftMargin + 8
+        rightMargin: mainWindow.sceneRightMargin + 8
+        topMargin: 6
+      }
+      spacing: 6
+
+      Button {
+        Layout.fillWidth: true
+        text: "查找"
+        onClicked: plugin.openBrowser("search")
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "附近"
+        onClicked: plugin.openBrowser("nearby")
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "新增"
+        enabled: workerAppSettings.editEnabled
+        onClicked: plugin.openAddPanel()
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "更多"
+        onClicked: moreDrawer.open()
+      }
+    }
+  }
+
+  Drawer {
+    id: browserDrawer
+    objectName: "waterworksBrowserDrawer"
+    parent: mainWindow.contentItem
+    z: 100
+    edge: Qt.BottomEdge
+    modal: false
+    interactive: true
+    width: mainWindow.width
+    height: Math.min(mainWindow.height * 0.62, 620)
+
+    onClosed: plugin.clearQueryHighlight()
+
+    background: Rectangle {
+      color: QfTheme.mainBackgroundColor
+      border.color: QfTheme.controlBorderColor
+    }
 
     ColumnLayout {
-      anchors.fill: parent
-      spacing: 10
+      anchors {
+        fill: parent
+        leftMargin: mainWindow.sceneLeftMargin + 12
+        rightMargin: mainWindow.sceneRightMargin + 12
+        topMargin: 10
+        bottomMargin: mainWindow.sceneBottomMargin + 10
+      }
+      spacing: 8
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Label {
+          Layout.fillWidth: true
+          text: plugin.queryMode === "nearby" ? "附近" : "查找"
+          font.bold: true
+          font.pixelSize: 18
+          color: QfTheme.mainTextColor
+        }
+
+        Button {
+          text: "关闭"
+          onClicked: browserDrawer.close()
+        }
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        spacing: 6
+
+        Button {
+          Layout.fillWidth: true
+          text: "点位"
+          checkable: true
+          checked: plugin.queryObjectKind === "asset"
+          onClicked: {
+            plugin.queryObjectKind = "asset";
+            assetSearchResults.clear();
+            plugin.clearQueryHighlight();
+            if (plugin.queryMode === "nearby") {
+              plugin.loadNearbyKind("asset");
+            }
+          }
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "管线"
+          checkable: true
+          checked: plugin.queryObjectKind === "pipeline"
+          onClicked: {
+            plugin.queryObjectKind = "pipeline";
+            assetSearchResults.clear();
+            plugin.clearQueryHighlight();
+            if (plugin.queryMode === "nearby") {
+              plugin.loadNearbyKind("pipeline");
+            }
+          }
+        }
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        visible: plugin.queryMode === "nearby"
+        spacing: 8
+
+        ComboBox {
+          id: nearbyRadiusFilter
+          Layout.fillWidth: true
+          model: [
+            {"text":"100 米","value":100},
+            {"text":"300 米","value":300},
+            {"text":"500 米","value":500},
+            {"text":"1 公里","value":1000},
+            {"text":"2 公里","value":2000}
+          ]
+          textRole: "text"
+          currentIndex: 2
+          onCurrentIndexChanged: {
+            if (browserDrawer.opened && plugin.queryMode === "nearby") {
+              plugin.loadNearbyKind(plugin.queryObjectKind);
+            }
+          }
+        }
+
+        Button {
+          text: searchBusy ? "查询中" : "刷新"
+          enabled: !searchBusy
+          onClicked: plugin.loadNearbyKind(plugin.queryObjectKind)
+        }
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        visible: plugin.queryMode === "search"
+        spacing: 6
+
+        TextField {
+          id: querySearchField
+          Layout.fillWidth: true
+          placeholderText: plugin.queryObjectKind === "pipeline" ? "管线名称、编号、材质…" : "点位名称、编号、位置…"
+          selectByMouse: true
+          onAccepted: plugin.searchObjects(text)
+        }
+
+        Button {
+          text: searchBusy ? "查询中" : "查询"
+          enabled: !searchBusy
+          onClicked: plugin.searchObjects(querySearchField.text)
+        }
+      }
+
+      Button {
+        Layout.fillWidth: true
+        visible: plugin.queryMode === "search"
+        text: plugin.queryFiltersExpanded ? "收起筛选" : "筛选"
+        onClicked: plugin.queryFiltersExpanded = !plugin.queryFiltersExpanded
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+        visible: plugin.queryMode === "search" && plugin.queryFiltersExpanded
+        spacing: 6
+
+        ComboBox {
+          id: searchAssetTypeFilter
+          Layout.fillWidth: true
+          model: assetTypeOptions
+          textRole: "text"
+          currentIndex: 0
+          enabled: plugin.queryObjectKind === "asset"
+          onCurrentIndexChanged: assetSearchResults.clear()
+        }
+
+        ComboBox {
+          id: searchAssetStatusFilter
+          Layout.fillWidth: true
+          model: [
+            {"text":"全部状态","value":""},
+            {"text":"需处理","value":"problem"},
+            {"text":"正常","value":"normal"},
+            {"text":"需关注","value":"attention"},
+            {"text":"待维修","value":"repair"},
+            {"text":"停用","value":"disabled"}
+          ]
+          textRole: "text"
+          currentIndex: 0
+          onCurrentIndexChanged: assetSearchResults.clear()
+        }
+      }
+
+      CheckBox {
+        id: searchUninspectedOnly
+        Layout.fillWidth: true
+        visible: plugin.queryMode === "search" && plugin.queryFiltersExpanded
+        text: "仅看从未巡检"
+        onToggled: assetSearchResults.clear()
+      }
 
       Label {
         Layout.fillWidth: true
-        text: "当前位置"
+        text: assetSearchResults.count > 0
+              ? "找到 " + assetSearchResults.count + " 条 · 地图已高亮"
+              : (searchBusy ? "正在查询…" : "结果会显示在这里")
+        color: QfTheme.secondaryTextColor
+      }
+
+      ListView {
+        id: queryResultsView
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        clip: true
+        spacing: 8
+        model: assetSearchResults
+        delegate: queryResultDelegate
+      }
+    }
+  }
+
+  Drawer {
+    id: addDrawer
+    objectName: "waterworksAddDrawer"
+    parent: mainWindow.contentItem
+    z: 105
+    edge: Qt.BottomEdge
+    modal: false
+    interactive: true
+    width: mainWindow.width
+    height: Math.min(230 + mainWindow.sceneBottomMargin, mainWindow.height * 0.4)
+
+    background: Rectangle {
+      color: QfTheme.mainBackgroundColor
+      border.color: QfTheme.controlBorderColor
+    }
+
+    ColumnLayout {
+      anchors {
+        fill: parent
+        leftMargin: mainWindow.sceneLeftMargin + 16
+        rightMargin: mainWindow.sceneRightMargin + 16
+        topMargin: 12
+        bottomMargin: mainWindow.sceneBottomMargin + 12
+      }
+      spacing: 8
+
+      Label {
+        Layout.fillWidth: true
+        text: "新增"
         font.bold: true
+        font.pixelSize: 18
         color: QfTheme.mainTextColor
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "新增操作只在编辑模式开放"
+        color: QfTheme.secondaryTextColor
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "新增点位"
+        onClicked: {
+          addDrawer.close();
+          plugin.createAssetAtCurrentPosition();
+        }
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "新建管线"
+        onClicked: {
+          addDrawer.close();
+          plugin.startPipelineCapture();
+        }
+      }
+    }
+  }
+
+  Drawer {
+    id: moreDrawer
+    objectName: "waterworksMoreDrawer"
+    parent: mainWindow.contentItem
+    z: 105
+    edge: Qt.BottomEdge
+    modal: false
+    interactive: true
+    width: mainWindow.width
+    height: Math.min(330 + mainWindow.sceneBottomMargin, mainWindow.height * 0.55)
+
+    background: Rectangle {
+      color: QfTheme.mainBackgroundColor
+      border.color: QfTheme.controlBorderColor
+    }
+
+    ColumnLayout {
+      anchors {
+        fill: parent
+        leftMargin: mainWindow.sceneLeftMargin + 16
+        rightMargin: mainWindow.sceneRightMargin + 16
+        topMargin: 12
+        bottomMargin: mainWindow.sceneBottomMargin + 12
+      }
+      spacing: 8
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Label {
+          Layout.fillWidth: true
+          text: "更多"
+          font.bold: true
+          font.pixelSize: 18
+          color: QfTheme.mainTextColor
+        }
+
+        Button {
+          text: "关闭"
+          onClicked: moreDrawer.close()
+        }
       }
 
       Label {
@@ -1529,342 +2001,16 @@ Item {
         wrapMode: Text.WordWrap
       }
 
-      RowLayout {
+      Button {
         Layout.fillWidth: true
-        spacing: 6
-
-        Button {
-          Layout.fillWidth: true
-          text: "定位到我"
-          onClicked: plugin.centerOnCurrentPosition()
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: workerAppSettings.showMyLocationMarker ? "隐藏我的位置" : "显示我的位置"
-          onClicked: plugin.setMyLocationMarkerVisible(!workerAppSettings.showMyLocationMarker)
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: "新增点位"
-          onClicked: plugin.createAssetAtCurrentPosition()
-        }
+        text: workerAppSettings.showMyLocationMarker ? "隐藏我的位置标记" : "显示我的位置标记"
+        onClicked: plugin.setMyLocationMarkerVisible(!workerAppSettings.showMyLocationMarker)
       }
 
-      RowLayout {
+      Button {
         Layout.fillWidth: true
-        spacing: 6
-
-        Button {
-          Layout.fillWidth: true
-          text: "新建管线"
-          onClicked: plugin.startPipelineCapture()
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: searchPanelVisible ? "收起查找" : "查找"
-          onClicked: searchPanelVisible = !searchPanelVisible
-        }
-      }
-
-      RowLayout {
-        Layout.fillWidth: true
-        spacing: 6
-
-        Button {
-          Layout.fillWidth: true
-          text: "附近点位"
-          enabled: !searchBusy
-          onClicked: plugin.loadNearbyKind("asset")
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: "附近管线"
-          enabled: !searchBusy
-          onClicked: plugin.loadNearbyKind("pipeline")
-        }
-      }
-
-      Rectangle {
-        Layout.fillWidth: true
-        height: 1
-        color: QfTheme.controlBorderColor
-      }
-
-      Label {
-        Layout.fillWidth: true
-        visible: searchPanelVisible
-        text: "查找"
-        font.bold: true
-        color: QfTheme.mainTextColor
-      }
-
-      RowLayout {
-        Layout.fillWidth: true
-        visible: searchPanelVisible
-
-        ComboBox {
-          id: searchTargetFilter
-          Layout.fillWidth: true
-          model: [
-            {
-              text: "点位",
-              value: "asset"
-            },
-            {
-              text: "管线",
-              value: "pipeline"
-            }
-          ]
-          textRole: "text"
-          currentIndex: 0
-
-          onCurrentIndexChanged: {
-            assetSearchResults.clear()
-            if (assetTypeFilter) {
-              assetTypeFilter.currentIndex = 0
-            }
-          }
-        }
-      }
-
-      RowLayout {
-        Layout.fillWidth: true
-        visible: searchPanelVisible
-        spacing: 6
-
-        ComboBox {
-          id: assetTypeFilter
-          Layout.fillWidth: true
-          model: assetTypeOptions
-          textRole: "text"
-          currentIndex: 0
-          enabled: plugin.selectedSearchKind() === "asset"
-        }
-
-        ComboBox {
-          id: assetStatusFilter
-          Layout.fillWidth: true
-          model: [
-            {
-              text: "全部状态",
-              value: ""
-            },
-            {
-              text: "需处理",
-              value: "problem"
-            },
-            {
-              text: "正常",
-              value: "normal"
-            },
-            {
-              text: "需关注",
-              value: "attention"
-            },
-            {
-              text: "待维修",
-              value: "repair"
-            },
-            {
-              text: "停用",
-              value: "disabled"
-            }
-          ]
-          textRole: "text"
-          currentIndex: 0
-        }
-      }
-
-      CheckBox {
-        id: uninspectedOnly
-        visible: searchPanelVisible
-        Layout.fillWidth: true
-        text: "仅看从未巡检"
-        onToggled: assetSearchResults.clear()
-      }
-
-      RowLayout {
-        Layout.fillWidth: true
-        visible: searchPanelVisible
-        spacing: 6
-
-        ComboBox {
-          id: nearbyRadiusCombo
-          model: [
-            {
-              text: "100 m",
-              value: 100
-            },
-            {
-              text: "300 m",
-              value: 300
-            },
-            {
-              text: "500 m",
-              value: 500
-            },
-            {
-              text: "1 km",
-              value: 1000
-            },
-            {
-              text: "2 km",
-              value: 2000
-            }
-          ]
-          textRole: "text"
-          currentIndex: 2
-        }
-
-        Label {
-          Layout.fillWidth: true
-          text: "附近查询范围"
-          color: QfTheme.secondaryTextColor
-          verticalAlignment: Text.AlignVCenter
-        }
-      }
-
-      RowLayout {
-        Layout.fillWidth: true
-        visible: searchPanelVisible
-
-        TextField {
-          id: assetSearchField
-          Layout.fillWidth: true
-          placeholderText: plugin.selectedSearchKind() === "pipeline" ? "输入管线名称、编号、材质或压力分区" : "输入名称、编号或位置描述"
-          selectByMouse: true
-          onAccepted: plugin.searchObjects(text)
-        }
-
-        Button {
-          text: searchBusy ? "查询中" : "查询"
-          enabled: !searchBusy
-          onClicked: plugin.searchObjects(assetSearchField.text)
-        }
-      }
-
-      Label {
-        Layout.fillWidth: true
-        visible: searchPanelVisible && assetSearchResults.count > 0
-        text: "找到 " + assetSearchResults.count + " 条结果 · 点“地图”定位，点“详情”查看"
-        color: QfTheme.secondaryTextColor
-        wrapMode: Text.WordWrap
-      }
-
-      ListView {
-        id: resultsView
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        visible: searchPanelVisible
-        clip: true
-        spacing: 6
-        model: assetSearchResults
-
-        delegate: Rectangle {
-          required property string objectKind
-          required property string assetId
-          required property string assetName
-          required property string assetCode
-          required property string assetType
-          required property string assetStatus
-          required property string assetLastInspection
-          required property string assetDetail
-          required property int assetDistance
-
-          width: resultsView.width
-          height: resultColumn.implicitHeight + 20
-          radius: 6
-          color: QfTheme.groupBoxBackgroundColor
-          border.color: QfTheme.controlBorderColor
-
-          ColumnLayout {
-            id: resultColumn
-            anchors {
-              left: parent.left
-              right: parent.right
-              top: parent.top
-              margins: 10
-            }
-            spacing: 3
-
-            Label {
-              Layout.fillWidth: true
-              text: assetName
-              font.bold: true
-              color: QfTheme.mainTextColor
-              elide: Text.ElideRight
-            }
-
-            Label {
-              Layout.fillWidth: true
-              text: (assetDistance >= 0 ? assetDistance + " m  " : "") + (assetCode.length > 0 ? "编号 " + assetCode + "  " : "") + (assetType.length > 0 ? (objectKind === "asset" ? plugin.assetTypeLabel(assetType) : assetType) + "  " : "") + (assetStatus.length > 0 ? plugin.assetStatusLabel(assetStatus) : "")
-              color: QfTheme.secondaryTextColor
-              elide: Text.ElideRight
-            }
-
-            Label {
-              Layout.fillWidth: true
-              text: "最近巡检 " + (assetLastInspection.length > 0 ? assetLastInspection : "从未巡检") + (assetDetail.length > 0 ? "  ·  " + assetDetail : "")
-              color: QfTheme.secondaryTextColor
-              elide: Text.ElideRight
-            }
-
-            RowLayout {
-              Layout.fillWidth: true
-
-              Button {
-                Layout.fillWidth: true
-                text: "地图"
-                onClicked: plugin.focusObjectOnMap(objectKind, assetId, true)
-              }
-
-              Button {
-                Layout.fillWidth: true
-                text: "详情"
-                onClicked: plugin.openObject(objectKind, assetId, false)
-              }
-
-              Button {
-                Layout.fillWidth: true
-                text: "编辑"
-                onClicked: plugin.openObject(objectKind, assetId, true)
-              }
-
-              Button {
-                Layout.fillWidth: true
-                text: "导航"
-                visible: objectKind === "asset"
-                onClicked: plugin.navigateToAsset(assetId)
-              }
-            }
-
-            RowLayout {
-              Layout.fillWidth: true
-
-              Button {
-                Layout.fillWidth: true
-                text: "巡检"
-                onClicked: plugin.createInspection(assetId, objectKind)
-              }
-
-              Button {
-                Layout.fillWidth: true
-                text: "维修"
-                onClicked: plugin.createRepair(assetId, objectKind)
-              }
-
-              Button {
-                Layout.fillWidth: true
-                text: "附件"
-                onClicked: plugin.createAttachment(assetId, objectKind)
-              }
-            }
-          }
-        }
+        text: "复制当前位置"
+        onClicked: plugin.copyCurrentPosition()
       }
 
       Button {
@@ -1872,43 +2018,52 @@ Item {
         text: "备份 / 导出"
         onClicked: plugin.openProjectBackup()
       }
-    }
 
-    Rectangle {
-      anchors.fill: parent
-      visible: !plugin.waterworksProjectReady
-      z: 10
-      color: QfTheme.mainBackgroundColor
-
-      ColumnLayout {
-        anchors.centerIn: parent
-        width: Math.min(parent.width - 40, 420)
-        spacing: 14
-
-        Label {
-          Layout.fillWidth: true
-          text: "还没有打开供水数据"
-          font.bold: true
-          font.pixelSize: 20
-          horizontalAlignment: Text.AlignHCenter
-          color: QfTheme.mainTextColor
-        }
-
-        Label {
-          Layout.fillWidth: true
-          text: "正在准备供水巡检地图。如果自动初始化失败，可以手动打开已有的供水数据。"
-          wrapMode: Text.WordWrap
-          horizontalAlignment: Text.AlignHCenter
-          color: QfTheme.secondaryTextColor
-        }
-
-        Button {
-          Layout.fillWidth: true
-          text: "打开供水数据"
-          onClicked: plugin.chooseWaterworksProject()
-        }
-
+      Button {
+        Layout.fillWidth: true
+        text: "打开其他供水数据"
+        onClicked: plugin.chooseWaterworksProject()
       }
     }
   }
+
+  Rectangle {
+    id: projectNotReadyOverlay
+    objectName: "waterworksProjectNotReadyOverlay"
+    parent: mainWindow.contentItem
+    anchors.fill: parent
+    z: 120
+    visible: !plugin.waterworksProjectReady
+    color: QfTheme.mainBackgroundColor
+
+    ColumnLayout {
+      anchors.centerIn: parent
+      width: Math.min(parent.width - 40, 420)
+      spacing: 14
+
+      Label {
+        Layout.fillWidth: true
+        text: "正在准备供水巡检地图"
+        font.bold: true
+        font.pixelSize: 20
+        horizontalAlignment: Text.AlignHCenter
+        color: QfTheme.mainTextColor
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "首次启动会自动创建地图和供水数据；如果没有自动完成，可以手动打开已有数据。"
+        wrapMode: Text.WordWrap
+        horizontalAlignment: Text.AlignHCenter
+        color: QfTheme.secondaryTextColor
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "打开供水数据"
+        onClicked: plugin.chooseWaterworksProject()
+      }
+    }
+  }
+
 }
