@@ -17,19 +17,30 @@ import project_profile as profile
 
 def require_qgis():
     try:
+        from qgis.PyQt.QtGui import QColor
         from qgis.core import (
             Qgis,
             QgsApplication,
             QgsAttributeEditorContainer,
             QgsAttributeEditorField,
             QgsAttributeEditorRelation,
+            QgsCategorizedSymbolRenderer,
             QgsCoordinateReferenceSystem,
             QgsDefaultValue,
             QgsEditorWidgetSetup,
+            QgsLineSymbol,
+            QgsMarkerSymbol,
+            QgsPalLayerSettings,
             QgsProject,
+            QgsProperty,
+            QgsRendererCategory,
             QgsRasterLayer,
             QgsRelation,
+            QgsSymbolLayer,
+            QgsTextBufferSettings,
+            QgsTextFormat,
             QgsVectorLayer,
+            QgsVectorLayerSimpleLabeling,
         )
     except ImportError as exc:
         raise SystemExit(
@@ -37,18 +48,29 @@ def require_qgis():
         ) from exc
 
     return {
+        "QColor": QColor,
         "Qgis": Qgis,
         "QgsApplication": QgsApplication,
         "QgsAttributeEditorContainer": QgsAttributeEditorContainer,
         "QgsAttributeEditorField": QgsAttributeEditorField,
         "QgsAttributeEditorRelation": QgsAttributeEditorRelation,
+        "QgsCategorizedSymbolRenderer": QgsCategorizedSymbolRenderer,
         "QgsCoordinateReferenceSystem": QgsCoordinateReferenceSystem,
         "QgsDefaultValue": QgsDefaultValue,
         "QgsEditorWidgetSetup": QgsEditorWidgetSetup,
+        "QgsLineSymbol": QgsLineSymbol,
+        "QgsMarkerSymbol": QgsMarkerSymbol,
+        "QgsPalLayerSettings": QgsPalLayerSettings,
         "QgsProject": QgsProject,
+        "QgsProperty": QgsProperty,
+        "QgsRendererCategory": QgsRendererCategory,
         "QgsRasterLayer": QgsRasterLayer,
         "QgsRelation": QgsRelation,
+        "QgsSymbolLayer": QgsSymbolLayer,
+        "QgsTextBufferSettings": QgsTextBufferSettings,
+        "QgsTextFormat": QgsTextFormat,
         "QgsVectorLayer": QgsVectorLayer,
+        "QgsVectorLayerSimpleLabeling": QgsVectorLayerSimpleLabeling,
     }
 
 
@@ -105,6 +127,88 @@ def add_tianditu_imagery(api, project, token: str | None):
         added.append(layer)
 
     return added
+
+
+def configure_map_style(api, layers):
+    QColor = api["QColor"]
+    Qgis = api["Qgis"]
+    QgsCategorizedSymbolRenderer = api["QgsCategorizedSymbolRenderer"]
+    QgsLineSymbol = api["QgsLineSymbol"]
+    QgsMarkerSymbol = api["QgsMarkerSymbol"]
+    QgsPalLayerSettings = api["QgsPalLayerSettings"]
+    QgsProperty = api["QgsProperty"]
+    QgsRendererCategory = api["QgsRendererCategory"]
+    QgsSymbolLayer = api["QgsSymbolLayer"]
+    QgsTextBufferSettings = api["QgsTextBufferSettings"]
+    QgsTextFormat = api["QgsTextFormat"]
+    QgsVectorLayerSimpleLabeling = api["QgsVectorLayerSimpleLabeling"]
+
+    asset_layer = layers["assets_point"]
+    categories = []
+    status_expression = (
+        "CASE "
+        "WHEN \"status\"='attention' THEN '#F9A825' "
+        "WHEN \"status\"='repair' THEN '#C62828' "
+        "WHEN \"status\"='disabled' THEN '#616161' "
+        "ELSE '#2E7D32' END"
+    )
+
+    for value, config in profile.ASSET_SYMBOLS.items():
+        symbol = QgsMarkerSymbol.createSimple(
+            {
+                "name": config["shape"],
+                "color": config["color"],
+                "size": config["size"],
+                "outline_color": profile.STATUS_STROKE_COLORS["normal"],
+                "outline_width": "0.8",
+            }
+        )
+        symbol.symbolLayer(0).setDataDefinedProperty(
+            QgsSymbolLayer.Property.PropertyStrokeColor,
+            QgsProperty.fromExpression(status_expression),
+        )
+        categories.append(
+            QgsRendererCategory(value, symbol, config["label"])
+        )
+
+    asset_layer.setRenderer(
+        QgsCategorizedSymbolRenderer("asset_type", categories)
+    )
+
+    label_settings = QgsPalLayerSettings()
+    label_settings.fieldName = profile.ASSET_LABEL_EXPRESSION
+    label_settings.isExpression = True
+    label_settings.placement = Qgis.LabelPlacement.AroundPoint
+    label_settings.scaleVisibility = True
+    label_settings.minimumScale = profile.ASSET_LABEL_MIN_SCALE
+
+    text_format = QgsTextFormat()
+    text_format.setSize(9)
+    text_format.setColor(QColor("#17212B"))
+
+    buffer = QgsTextBufferSettings()
+    buffer.setEnabled(True)
+    buffer.setSize(1.2)
+    buffer.setColor(QColor("#FFFFFF"))
+    text_format.setBuffer(buffer)
+
+    label_settings.setFormat(text_format)
+    asset_layer.setLabeling(QgsVectorLayerSimpleLabeling(label_settings))
+    asset_layer.setLabelsEnabled(True)
+
+    pipeline_symbol = QgsLineSymbol.createSimple(
+        {
+            "line_color": profile.PIPELINE_STYLE["color"],
+            "line_width": profile.PIPELINE_STYLE["width"],
+            "capstyle": "round",
+            "joinstyle": "round",
+        }
+    )
+    pipeline_symbol.symbolLayer(0).setDataDefinedProperty(
+        QgsSymbolLayer.Property.PropertyStrokeColor,
+        QgsProperty.fromExpression(status_expression),
+    )
+    layers["pipelines"].renderer().setSymbol(pipeline_symbol)
 
 
 def configure_fields(api, layers):
@@ -256,6 +360,7 @@ def build_project(
         layers = load_layers(api, project, geopackage.resolve())
         add_tianditu_imagery(api, project, tianditu_token)
         configure_fields(api, layers)
+        configure_map_style(api, layers)
         relations = configure_relations(api, project, layers)
         configure_forms(api, layers, relations)
 
