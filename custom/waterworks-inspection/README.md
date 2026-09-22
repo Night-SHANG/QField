@@ -108,3 +108,9 @@ python custom/waterworks-inspection/tools/build_project_bundle.py \
 新增功能按以下顺序检查：QField 原生能力 → QGIS/QFieldSync → QFieldCloud → 官方/社区插件 → 业务层插件 → 最后才考虑 QField 核心修改。
 
 例如附近管线距离直接复用 QField 已公开到 QML 的 `QfExpressionEvaluator` 与 QGIS `distance()/transform()` 表达式计算，不为供水巡检新增几何距离核心 API。只有上游能力确实无法通过现有接口复用时，才允许增加尽可能小、可通用的核心接口。
+
+
+## 地图
+
+- 底图支持 OSM、天地图矢量和天地图影像切换；切换不会修改点位或管线坐标。
+- 天地图 tk 不提交到公开仓库，CI 通过 GitHub Actions Secret TIANDITU_TK 注入；也支持设备本地密码框配置。
