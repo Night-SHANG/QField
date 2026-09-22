@@ -333,6 +333,89 @@ BEGIN
   SET repaired_at = CURRENT_TIMESTAMP
   WHERE fid = NEW.fid;
 END;
+
+
+CREATE TRIGGER trg_inspection_insert_updates_asset_status
+AFTER INSERT ON inspections
+FOR EACH ROW
+BEGIN
+  UPDATE assets_point
+  SET status = CASE
+    WHEN NEW.result = 'repair' THEN 'repair'
+    WHEN NEW.result = 'attention' AND status <> 'repair' THEN 'attention'
+    WHEN NEW.result = 'normal'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE asset_id = NEW.asset_id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'normal'
+    ELSE status
+  END
+  WHERE id = NEW.asset_id;
+END;
+
+CREATE TRIGGER trg_inspection_update_updates_asset_status
+AFTER UPDATE OF result, asset_id ON inspections
+FOR EACH ROW
+BEGIN
+  UPDATE assets_point
+  SET status = CASE
+    WHEN NEW.result = 'repair' THEN 'repair'
+    WHEN NEW.result = 'attention' AND status <> 'repair' THEN 'attention'
+    WHEN NEW.result = 'normal'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE asset_id = NEW.asset_id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'normal'
+    ELSE status
+  END
+  WHERE id = NEW.asset_id;
+END;
+
+CREATE TRIGGER trg_repair_insert_updates_asset_status
+AFTER INSERT ON repairs
+FOR EACH ROW
+BEGIN
+  UPDATE assets_point
+  SET status = CASE
+    WHEN NEW.result = 'unresolved' THEN 'repair'
+    WHEN NEW.result = 'monitor' AND status <> 'repair' THEN 'attention'
+    WHEN NEW.result = 'resolved'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE asset_id = NEW.asset_id
+          AND id <> NEW.id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'attention'
+    ELSE status
+  END
+  WHERE id = NEW.asset_id;
+END;
+
+CREATE TRIGGER trg_repair_update_updates_asset_status
+AFTER UPDATE OF result, asset_id ON repairs
+FOR EACH ROW
+BEGIN
+  UPDATE assets_point
+  SET status = CASE
+    WHEN NEW.result = 'unresolved' THEN 'repair'
+    WHEN NEW.result = 'monitor' THEN 'attention'
+    WHEN NEW.result = 'resolved'
+      AND NOT EXISTS (
+        SELECT 1 FROM repairs
+        WHERE asset_id = NEW.asset_id
+          AND id <> NEW.id
+          AND result IN ('unresolved', 'monitor')
+      )
+      THEN 'attention'
+    ELSE status
+  END
+  WHERE id = NEW.asset_id;
+END;
 """
 
 
