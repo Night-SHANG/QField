@@ -32,6 +32,11 @@ Item {
   property var pendingAssetGeometry
   property var pendingPipelineGeometry
 
+  // Reliable no-token fallback map. The rectangle covers the Yulin area in
+  // EPSG:3857 so a first launch never opens to an undefined/empty extent.
+  readonly property string fallbackBasemapSource: "type=xyz&tilePixelRatio=1&url=https://tile.openstreetmap.org/%7Bz%7D/%7Bx%7D/%7By%7D.png&zmax=19&zmin=0&crs=EPSG3857"
+  readonly property string yulinDefaultExtent: "POLYGON((11933449 4411266,12389859 4411266,12389859 4807984,11933449 4807984,11933449 4411266))"
+
   Settings {
     id: workerAppSettings
     category: "QField"
@@ -61,6 +66,7 @@ Item {
         ensureBusinessLayers(path);
         refreshProjectState();
         simplifyInterface();
+        activateAndCenterLocation();
       });
     }
   }
@@ -75,7 +81,10 @@ Item {
     const info = positioning && positioning.positionInformation ? positioning.positionInformation : undefined;
     const projectFile = QfProjectUtils.createProject({
       "title": "供水巡检",
-      "basemap": "colorful",
+      "basemap": "custom",
+      "basemap_custom_provider": "wms",
+      "basemap_custom_source": fallbackBasemapSource,
+      "basemap_custom_extent": yulinDefaultExtent,
       "notes": false,
       "camera_capture": false,
       "tracks": false
@@ -185,6 +194,18 @@ Item {
         welcomeScreen.showLocalDataPicker();
       }
     });
+  }
+
+  function activateAndCenterLocation() {
+    const positioningSettings = iface.findItemByObjectName("positioningSettings");
+    const gnssButton = iface.findItemByObjectName("gnssButton");
+
+    if (positioningSettings && !positioningSettings.positioningActivated) {
+      positioningSettings.positioningActivated = true;
+    }
+    if (gnssButton) {
+      gnssButton.clicked();
+    }
   }
 
   function centerOnCurrentPosition() {
