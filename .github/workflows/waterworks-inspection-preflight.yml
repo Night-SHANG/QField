@@ -14,6 +14,10 @@ on:
       - 'src/core/qfgeometry.h'
       - 'src/core/utils/qffileutils.h'
       - 'src/core/utils/qffileutils.cpp'
+      - 'src/core/utils/qflayerutils.h'
+      - 'src/core/utils/qflayerutils.cpp'
+      - 'src/gui/qml/QfFeatureListForm.qml'
+      - 'src/gui/qml/QfNavigationBar.qml'
       - 'src/core/qfgeometry.h'
       - 'src/core/utils/qffileutils.h'
       - 'src/core/utils/qffileutils.cpp'
@@ -26,6 +30,10 @@ on:
       - 'src/app/CMakeLists.txt'
       - 'src/app/qml/QgisMobileapp.qml'
       - 'src/app/qml/QfWelcomeScreen.qml'
+      - 'src/core/utils/qflayerutils.h'
+      - 'src/core/utils/qflayerutils.cpp'
+      - 'src/gui/qml/QfFeatureListForm.qml'
+      - 'src/gui/qml/QfNavigationBar.qml'
       - '.github/workflows/waterworks-inspection-preflight.yml'
       - '.github/workflows/waterworks-inspection-android.yml'
   workflow_dispatch:
@@ -159,6 +167,31 @@ jobs:
 
           grep -q 'Q_INVOKABLE static int selectFeaturesByExpression' src/core/utils/qflayerutils.h || {
             echo "::error::Map query highlighting hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'Q_INVOKABLE static int deleteFeaturesByExpression' src/core/utils/qflayerutils.h || {
+            echo "::error::Committed expression deletion hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'property bool allowProcessing: true' src/gui/qml/QfFeatureListForm.qml || {
+            echo "::error::Feature processing visibility hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'objectName: "waterworksAttachmentDrawer"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Attachment browser is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'objectName: "waterworksPipelineDigitizingHint"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Pipeline digitizing guidance is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'objectName: "gnssTrackingButton"' src/app/qml/QgisMobileapp.qml || {
+            echo "::error::GNSS tracking visibility hook is missing"
             failures=$((failures + 1))
           }
 
