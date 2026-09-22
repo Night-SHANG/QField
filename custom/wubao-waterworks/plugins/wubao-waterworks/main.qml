@@ -127,6 +127,7 @@ Item {
       appendAssetResult(iterator.next())
       count++
     }
+    iterator.close()
 
     searchBusy = false
 
@@ -325,8 +326,9 @@ Item {
 
     const positioning = iface.positioning()
     if (positioning && positioning.active && positioning.positionInformation) {
-      const accuracy = Number(positioning.positionInformation.hacc)
-      if (isFinite(accuracy) && accuracy >= 0) {
+      const info = positioning.positionInformation
+      const accuracy = Number(info.hacc)
+      if (info.haccValid && isFinite(accuracy) && accuracy >= 0) {
         feature.setAttribute("position_accuracy_m", accuracy)
       }
     }
