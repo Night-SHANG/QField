@@ -1311,7 +1311,8 @@ ApplicationWindow {
     /* Location marker reflecting the current GNSS position */
     QfLocationMarker {
       id: locationMarker
-      visible: positionSource.active && positionSource.positionInformation && positionSource.positionInformation.latitudeValid
+      objectName: "locationMarker"
+      visible: userVisible && positionSource.active && positionSource.positionInformation && positionSource.positionInformation.latitudeValid
 
       mapSettings: mapCanvas.mapSettings
 
@@ -1409,6 +1410,9 @@ ApplicationWindow {
       centralActionComponent: Component {
         QfToolButton {
           id: identifyFeaturesButton
+          text: qsTr("Features")
+          display: AbstractButton.TextUnderIcon
+          font: QfTheme.tinyFont
           width: actionsPieMenu.bandWidth - 8
           height: width
           padding: 2
@@ -1440,6 +1444,9 @@ ApplicationWindow {
 
       QfToolButton {
         id: gnssCursorLockButton
+        text: qsTr("Cursor lock")
+        display: AbstractButton.TextUnderIcon
+        font: QfTheme.tinyFont
         width: actionsPieMenu.bandWidth - 8
         height: width
         padding: 2
@@ -1493,6 +1500,9 @@ ApplicationWindow {
 
       QfToolButton {
         id: gnssCanvasLockButton
+        text: qsTr("Map lock")
+        display: AbstractButton.TextUnderIcon
+        font: QfTheme.tinyFont
         width: actionsPieMenu.bandWidth - 8
         height: width
         padding: 2
@@ -1551,6 +1561,9 @@ ApplicationWindow {
 
       QfToolButton {
         id: addBookmarkAtCurrentLocationButton
+        text: qsTr("Add bookmark")
+        display: AbstractButton.TextUnderIcon
+        font: QfTheme.tinyFont
         width: actionsPieMenu.bandWidth - 8
         height: width
         padding: 2
@@ -1578,6 +1591,9 @@ ApplicationWindow {
 
       QfToolButton {
         id: copyCurrentLocationButton
+        text: qsTr("Copy location")
+        display: AbstractButton.TextUnderIcon
+        font: QfTheme.tinyFont
         width: actionsPieMenu.bandWidth - 8
         height: width
         padding: 2
@@ -1615,6 +1631,9 @@ ApplicationWindow {
 
       QfToolButton {
         id: showGnssInformation
+        text: qsTr("Position info")
+        display: AbstractButton.TextUnderIcon
+        font: QfTheme.tinyFont
         width: actionsPieMenu.bandWidth - 8
         height: width
         padding: 2
@@ -1655,6 +1674,9 @@ ApplicationWindow {
 
       QfToolButton {
         id: trackingButton
+        text: qsTr("Tracking")
+        display: AbstractButton.TextUnderIcon
+        font: QfTheme.tinyFont
         width: actionsPieMenu.bandWidth - 8
         height: width
         padding: 2
