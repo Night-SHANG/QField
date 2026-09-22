@@ -122,6 +122,38 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('feature.setAttribute("id", assetId)', self.text)
         self.assertIn("savePendingAssetPhotos(assetId)", self.text)
 
+    def test_runtime_project_layers_are_field_friendly(self) -> None:
+        self.assertIn("function configureBusinessLayer(layer, tableName)", self.text)
+        self.assertIn("QfLayerUtils.configureField", self.text)
+        self.assertIn("QfLayerUtils.setDefaultRenderer(layer, qgisProject)", self.text)
+        self.assertIn("QfLayerUtils.setDefaultLabeling(layer, qgisProject)", self.text)
+        self.assertIn('"巡检时间"', self.text)
+        self.assertIn('"维修内容"', self.text)
+        self.assertIn('"附件类型"', self.text)
+
+    def test_search_results_can_focus_map_or_open_details(self) -> None:
+        self.assertIn("function focusObjectOnMap(objectKind, objectId, showToast)", self.text)
+        self.assertIn('text: "地图"', self.text)
+        self.assertIn('text: "详情"', self.text)
+        self.assertIn("featureForm.extentController.zoomToAllFeatures()", self.text)
+
+    def test_location_marker_can_be_hidden_without_stopping_positioning(self) -> None:
+        self.assertIn("property bool showMyLocationMarker: true", self.text)
+        self.assertIn("function setMyLocationMarkerVisible(visible)", self.text)
+        self.assertIn('"隐藏我的位置"', self.text)
+        self.assertIn('"显示我的位置"', self.text)
+
+    def test_professional_layer_controls_are_hidden(self) -> None:
+        self.assertIn('iface.findItemByObjectName("mapThemeContainer")', self.text)
+        self.assertIn('iface.findItemByObjectName("legendContainer")', self.text)
+        self.assertIn("dashBoard.allowActiveLayerChange = false", self.text)
+        self.assertIn("dashBoard.allowInteractive = false", self.text)
+
+    def test_single_map_tap_opens_and_zooms_to_one_feature(self) -> None:
+        self.assertIn('iface.findItemByObjectName("qfieldSettings")', self.text)
+        self.assertIn("qfieldSettings.autoOpenFormSingleIdentify = true", self.text)
+        self.assertIn("qfieldSettings.autoZoomToIdentifiedFeature = true", self.text)
+
     def test_project_load_activates_and_centers_location(self) -> None:
         self.assertIn("function activateAndCenterLocation()", self.text)
         self.assertIn('iface.findItemByObjectName("positioningSettings")', self.text)
