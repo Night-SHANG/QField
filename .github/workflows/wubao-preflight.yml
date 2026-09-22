@@ -89,7 +89,7 @@ jobs:
             fi
           done
 
-          grep -q 'objectName: "wubaoWaterworksPlugin"' \
+          grep -q 'objectName: "waterworksInspectionPlugin"' \
             custom/wubao-waterworks/plugins/wubao-waterworks/main.qml || {
               echo "::error::Waterworks plugin root object is missing"
               failures=$((failures + 1))
