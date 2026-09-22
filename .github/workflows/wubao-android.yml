@@ -3,16 +3,6 @@ name: 🚰 吴堡供水巡检 Android
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/wubao-waterworks
-    paths:
-      - 'custom/wubao-waterworks/**'
-      - 'CMakeLists.txt'
-      - '.github/workflows/wubao-android.yml'
-      - 'src/**'
-      - 'platform/android/**'
-      - 'scripts/**'
 
 concurrency:
   group: wubao-waterworks-${{ github.ref }}
