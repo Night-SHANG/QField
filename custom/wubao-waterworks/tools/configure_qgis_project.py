@@ -34,6 +34,8 @@ def require_qgis():
             QgsPalLayerSettings,
             QgsProject,
             QgsProperty,
+            QgsRectangle,
+            QgsReferencedRectangle,
             QgsRendererCategory,
             QgsRasterLayer,
             QgsSingleSymbolRenderer,
@@ -65,6 +67,8 @@ def require_qgis():
         "QgsPalLayerSettings": QgsPalLayerSettings,
         "QgsProject": QgsProject,
         "QgsProperty": QgsProperty,
+        "QgsRectangle": QgsRectangle,
+        "QgsReferencedRectangle": QgsReferencedRectangle,
         "QgsRendererCategory": QgsRendererCategory,
         "QgsRasterLayer": QgsRasterLayer,
         "QgsSingleSymbolRenderer": QgsSingleSymbolRenderer,
@@ -94,10 +98,42 @@ def load_layers(api, project, geopackage: Path):
         if not layer.isValid():
             raise RuntimeError(f"Unable to load {table} from {geopackage}")
 
-        project.addMapLayer(layer)
+        project.addMapLayer(layer, False)
         layers[table] = layer
 
     return layers
+
+
+def configure_project_view_and_tree(api, project, layers, basemaps):
+    QgsCoordinateReferenceSystem = api["QgsCoordinateReferenceSystem"]
+    QgsRectangle = api["QgsRectangle"]
+    QgsReferencedRectangle = api["QgsReferencedRectangle"]
+
+    xmin, ymin, xmax, ymax = profile.DEFAULT_VIEW_EXTENT
+    extent = QgsReferencedRectangle(
+        QgsRectangle(xmin, ymin, xmax, ymax),
+        QgsCoordinateReferenceSystem(profile.PROJECT_CRS),
+    )
+    project.viewSettings().setDefaultViewExtent(extent)
+    project.viewSettings().setPresetFullExtent(extent)
+
+    root = project.layerTreeRoot()
+    root.removeAllChildren()
+
+    business_group = root.addGroup("管网业务")
+    business_group.addLayer(layers["assets_point"])
+    business_group.addLayer(layers["pipelines"])
+
+    records_group = root.addGroup("记录")
+    records_group.addLayer(layers["inspections"])
+    records_group.addLayer(layers["repairs"])
+    records_group.addLayer(layers["attachments"])
+    records_group.setItemVisibilityChecked(False)
+
+    if basemaps:
+        basemap_group = root.addGroup("底图")
+        for layer in basemaps:
+            basemap_group.addLayer(layer)
 
 
 def add_tianditu_imagery(api, project, token: str | None):
@@ -395,9 +431,10 @@ def build_project(
         project.setFilePathStorage(Qgis.FilePathType.Relative)
 
         layers = load_layers(api, project, geopackage.resolve())
-        add_tianditu_imagery(api, project, tianditu_token)
+        basemaps = add_tianditu_imagery(api, project, tianditu_token)
         for offline_basemap in offline_basemaps or []:
-            add_offline_basemap(api, project, offline_basemap)
+            basemaps.append(add_offline_basemap(api, project, offline_basemap))
+        configure_project_view_and_tree(api, project, layers, basemaps)
         configure_fields(api, layers)
         configure_map_style(api, layers)
         relations = configure_relations(api, project, layers)
