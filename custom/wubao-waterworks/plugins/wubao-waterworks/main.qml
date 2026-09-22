@@ -16,6 +16,7 @@ Item {
   property var positionSource: iface.findItemByObjectName("positionSource")
   property var overlayFeatureFormDrawer: iface.findItemByObjectName("overlayFeatureFormDrawer")
   property var featureForm: iface.findItemByObjectName("featureForm")
+  property var navigation: iface.findItemByObjectName("navigation")
 
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
@@ -187,6 +188,42 @@ Item {
     } else {
       mainWindow.displayToast("已载入 " + count + " 个附近点位")
     }
+  }
+
+  function featureForAssetId(assetId) {
+    const layer = assetLayer()
+    if (!layer || !assetId) {
+      return null
+    }
+
+    const escapedId = escapeExpressionString(assetId)
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(
+      layer,
+      "\"id\" = '" + escapedId + "'"
+    )
+    if (!iterator.hasNext()) {
+      iterator.close()
+      return null
+    }
+
+    const feature = iterator.next()
+    iterator.close()
+    return feature
+  }
+
+  function navigateToAsset(assetId) {
+    const layer = assetLayer()
+    const feature = featureForAssetId(assetId)
+    if (!layer || !feature || !navigation) {
+      mainWindow.displayToast("无法开始点位导航")
+      return
+    }
+
+    navigation.setDestinationFeature(feature, layer)
+    waterworksDialog.close()
+    mainWindow.displayToast(
+      "开始导航：" + QfFeatureUtils.displayName(layer, feature)
+    )
   }
 
   function openAsset(assetId, editMode) {
@@ -467,6 +504,11 @@ Item {
               Button {
                 text: "编辑"
                 onClicked: plugin.openAsset(assetId, true)
+              }
+
+              Button {
+                text: "导航"
+                onClicked: plugin.navigateToAsset(assetId)
               }
 
               Button {
