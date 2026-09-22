@@ -36,16 +36,25 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('iface.findItemByObjectName("featureForm")', self.text)
         self.assertIn("featureForm.model.setFeatures(layer,", self.text)
 
-    def test_nearby_lookup_is_meter_based(self) -> None:
-        self.assertIn("EPSG:32649", self.text)
+    def test_nearby_lookup_is_meter_based_and_location_independent(self) -> None:
         self.assertIn("nearbyRadiusMeters", self.text)
+        self.assertIn("utmZone", self.text)
+        self.assertIn("32600", self.text)
+        self.assertIn("32700", self.text)
+        self.assertNotIn("EPSG:32649", self.text)
+
+    def test_asset_types_are_loaded_from_project_data(self) -> None:
+        self.assertIn("readonly property var assetTypeLayerNames", self.text)
+        self.assertIn("function loadAssetTypeOptions()", self.text)
+        self.assertIn("model: assetTypeOptions", self.text)
+        self.assertNotIn('case "valve_well"', self.text)
 
     def test_navigation_reuses_qfield_navigation(self) -> None:
         self.assertIn('iface.findItemByObjectName("navigation")', self.text)
         self.assertIn("navigation.setDestinationFeature", self.text)
 
     def test_search_iterators_are_closed(self) -> None:
-        self.assertGreaterEqual(self.text.count("iterator.close()"), 3)
+        self.assertGreaterEqual(self.text.count("iterator.close()"), 4)
 
     def test_problem_filter_covers_attention_and_repair(self) -> None:
         self.assertIn('value: "problem"', self.text)
