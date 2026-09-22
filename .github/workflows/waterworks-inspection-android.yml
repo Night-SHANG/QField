@@ -3,6 +3,9 @@ name: 🚰 供水巡检 Android
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - build/waterworks-inspection-apk
 
 concurrency:
   group: waterworks-inspection-${{ github.ref }}

@@ -83,7 +83,8 @@ python custom/waterworks-inspection/tools/build_project_bundle.py \
 为避免每次业务提交都触发 QField 全平台构建，开发阶段采用两级检查：
 
 - 日常提交到 `feature/waterworks-inspection`：只运行轻量 `供水巡检 Preflight`，检查 Python 语法、业务测试、主题 JSON 和专用层结构。
-- `供水巡检 Android` 完整 APK：仅通过手动 `workflow_dispatch` 触发，用于阶段性真机包。
+- `供水巡检 Android` 完整 APK：可通过手动 `workflow_dispatch` 触发；自动化协作时仅更新专用 `build/waterworks-inspection-apk` 分支触发，用于阶段性真机包。
+- 普通功能提交永远不会因为上述 build 分支机制触发完整 Android 构建。
 - QField 原生 Android / Linux / Windows / macOS / iOS / CodeQL 等完整矩阵：仅在阶段性 PR 或合并前运行，不把长期开发 PR 保持为开启状态。
 
 这样普通功能开发不会重复消耗完整编译时间，同时仍保留阶段性全量回归能力。
@@ -92,7 +93,7 @@ python custom/waterworks-inspection/tools/build_project_bundle.py \
 
 供水巡检项目由 QGIS/QField 项目文件、GeoPackage、附件目录和可选离线底图共同组成。应用内“备份 / 导出项目”复用 QField 原生项目文件夹导出链路，整目录导出或压缩分享时可以把业务数据和附件一起带走。
 
-普通 ZIP 只解决备份与迁移，不提供加密。生产环境中的管网坐标、巡检记录和附件应保存到受控设备、私有存储或受控同步服务中；后续数据加密单独实现，不把“压缩”当成“加密”。
+普通 ZIP 只解决备份与迁移，不提供加密。默认沿用 QField 的普通项目数据方式，不额外增加数据库加密、加密 ZIP 或禁止截图等机制，避免无实际需求地提高复杂度。
 
 ## 上游能力复用规则
 
