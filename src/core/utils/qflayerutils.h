@@ -104,7 +104,7 @@ class QfLayerUtils : public QObject
     /**
      * Sets the default symbology render for a given \a layer.
      */
-    static void setDefaultRenderer( QgsVectorLayer *layer, QgsProject *project = nullptr, const QString &attachmentField = QString(), const QString &colorField = QString() );
+    Q_INVOKABLE static void setDefaultRenderer( QgsVectorLayer *layer, QgsProject *project = nullptr, const QString &attachmentField = QString(), const QString &colorField = QString() );
 
     /**
      * Returns the default vector layer labeling for a given \a layer and \a textFormat.
@@ -114,7 +114,28 @@ class QfLayerUtils : public QObject
     /**
      * Sets the default labeling for a given \a layer.
      */
-    static void setDefaultLabeling( QgsVectorLayer *layer, QgsProject *project = nullptr );
+    Q_INVOKABLE static void setDefaultLabeling( QgsVectorLayer *layer, QgsProject *project = nullptr );
+
+    /**
+     * Applies common field form configuration from QML/runtime-created projects.
+     * Empty alias/widget/default values leave the existing setting untouched.
+     */
+    Q_INVOKABLE static bool configureField( QgsVectorLayer *layer,
+                                            const QString &fieldName,
+                                            const QString &alias = QString(),
+                                            const QString &widgetType = QString(),
+                                            const QVariantMap &widgetConfig = QVariantMap(),
+                                            const QString &defaultValueExpression = QString(),
+                                            bool readOnly = false );
+
+    //! Sets a layer display expression used by feature lists and forms.
+    Q_INVOKABLE static bool setLayerDisplayExpression( QgsVectorLayer *layer, const QString &expression );
+
+    //! Sets a custom property on a layer.
+    Q_INVOKABLE static bool setLayerCustomProperty( QgsVectorLayer *layer, const QString &key, const QVariant &value );
+
+    //! Requests an immediate repaint after runtime layer edits or styling changes.
+    Q_INVOKABLE static void triggerLayerRepaint( QgsMapLayer *layer );
 
     /**
      * Creats an online raster elevation layer.
