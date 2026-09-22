@@ -9309,6 +9309,35 @@ to show actions</source>
         <source>Open folder</source>
         <translation>打开文件夹</translation>
     </message>
+
+    <message>
+        <source>Cursor lock</source>
+        <translation>采点锁定</translation>
+    </message>
+    <message>
+        <source>Map lock</source>
+        <translation>地图锁定</translation>
+    </message>
+    <message>
+        <source>Add bookmark</source>
+        <translation>添加书签</translation>
+    </message>
+    <message>
+        <source>Copy location</source>
+        <translation>复制位置</translation>
+    </message>
+    <message>
+        <source>Position info</source>
+        <translation>位置信息</translation>
+    </message>
+    <message>
+        <source>Tracking</source>
+        <translation>跟踪</translation>
+    </message>
+    <message>
+        <source>Features</source>
+        <translation>点位</translation>
+    </message>
 </context>
 <context>
     <name>QgsGpsInformation</name>
