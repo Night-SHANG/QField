@@ -184,6 +184,11 @@ HIDDEN_FIELDS = {
     "repairs": {"fid", "id", "asset_id", "inspection_id"},
 }
 
+READ_ONLY_FIELDS = {
+    "assets_point": {"last_inspection_at"},
+    "inspections": {"position_accuracy_m"},
+}
+
 FORM_FIELDS = {
     "assets_point": [
         "code", "name", "asset_type", "status", "pipeline_id", "area_name",
