@@ -99,6 +99,13 @@ class QFIELD_CORE_EXPORT QfFileUtils : public QObject
     Q_INVOKABLE static bool writeFileContent( const QString &filePath, const QByteArray &content );
 
     /**
+     * Copies one file from a sourcePath to a destinationPath.
+     * Parent directories are created automatically.
+     * param overwrite when TRUE, an existing destination file is replaced.
+     */
+    Q_INVOKABLE static bool copyFile( const QString &sourcePath, const QString &destinationPath, bool overwrite = false );
+
+    /**
     * Gets detailed information about a file including MD5 hash and metadata.
     * Optionally includes the file content when fetchContent is true.
     * This is useful for file validation, caching, and efficient file handling in QML.
