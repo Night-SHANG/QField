@@ -437,8 +437,8 @@ Item {
       if (!layers) {
         continue;
       }
-      while (layers.length > 0) {
-        QfProjectUtils.removeMapLayer(qgisProject, layers[0]);
+      for (let j = 0; j < layers.length; j++) {
+        QfProjectUtils.removeMapLayer(qgisProject, layers[j]);
       }
     }
   }
