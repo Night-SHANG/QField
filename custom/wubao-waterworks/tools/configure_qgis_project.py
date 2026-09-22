@@ -380,6 +380,10 @@ def configure_forms(api, layers, relations):
         config = layer.editFormConfig()
         config.clearTabs()
         config.setLayout(Qgis.AttributeFormLayout.DragAndDrop)
+
+        for field_name in profile.READ_ONLY_FIELDS.get(table, set()):
+            config.setReadOnly(field_index(layer, field_name), True)
+
         root = config.invisibleRootContainer()
 
         details = QgsAttributeEditorContainer("基本信息", root)
