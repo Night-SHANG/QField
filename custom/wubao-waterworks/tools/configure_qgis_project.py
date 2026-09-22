@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import map_sources
 import project_profile as profile
 
 
@@ -26,6 +27,7 @@ def require_qgis():
             QgsDefaultValue,
             QgsEditorWidgetSetup,
             QgsProject,
+            QgsRasterLayer,
             QgsRelation,
             QgsVectorLayer,
         )
@@ -44,6 +46,7 @@ def require_qgis():
         "QgsDefaultValue": QgsDefaultValue,
         "QgsEditorWidgetSetup": QgsEditorWidgetSetup,
         "QgsProject": QgsProject,
+        "QgsRasterLayer": QgsRasterLayer,
         "QgsRelation": QgsRelation,
         "QgsVectorLayer": QgsVectorLayer,
     }
@@ -70,6 +73,38 @@ def load_layers(api, project, geopackage: Path):
         layers[table] = layer
 
     return layers
+
+
+def add_tianditu_imagery(api, project, token: str | None):
+    if not token:
+        return []
+
+    QgsRasterLayer = api["QgsRasterLayer"]
+    added = []
+
+    definitions = [
+        ("天地图·陕西 影像", map_sources.IMAGERY_XYZ),
+        ("天地图·陕西 影像注记", map_sources.IMAGERY_LABEL_XYZ),
+    ]
+
+    for name, template in definitions:
+        tile_url = map_sources.with_token(template, token)
+        uri = (
+            "type=xyz&url="
+            + tile_url
+            + f"&zmin={map_sources.MIN_ZOOM}"
+            + f"&zmax={map_sources.MAX_ZOOM}"
+            + "&crs=EPSG4490"
+        )
+        layer = QgsRasterLayer(uri, name, "wms")
+        if not layer.isValid():
+            raise RuntimeError(f"Unable to create TianDiTu layer: {name}")
+
+        project.addMapLayer(layer, False)
+        project.layerTreeRoot().addLayer(layer)
+        added.append(layer)
+
+    return added
 
 
 def configure_fields(api, layers):
@@ -195,7 +230,12 @@ def configure_forms(api, layers, relations):
         layer.setEditFormConfig(config)
 
 
-def build_project(geopackage: Path, output: Path) -> Path:
+def build_project(
+    geopackage: Path,
+    output: Path,
+    *,
+    tianditu_token: str | None = None,
+) -> Path:
     api = require_qgis()
     QgsApplication = api["QgsApplication"]
     QgsCoordinateReferenceSystem = api["QgsCoordinateReferenceSystem"]
@@ -214,6 +254,7 @@ def build_project(geopackage: Path, output: Path) -> Path:
         project.setFilePathStorage(Qgis.FilePathType.Relative)
 
         layers = load_layers(api, project, geopackage.resolve())
+        add_tianditu_imagery(api, project, tianditu_token)
         configure_fields(api, layers)
         relations = configure_relations(api, project, layers)
         configure_forms(api, layers, relations)
@@ -242,12 +283,26 @@ def main() -> int:
         type=Path,
         default=Path("wubao-waterworks.qgs"),
     )
+    parser.add_argument(
+        "--tianditu-token",
+        default=None,
+        help=(
+            "approved TianDiTu Shaanxi service token; omitted tokens are never "
+            "read from source control"
+        ),
+    )
     args = parser.parse_args()
 
     if not args.geopackage.is_file():
         parser.error(f"GeoPackage not found: {args.geopackage}")
 
-    print(build_project(args.geopackage, args.output))
+    print(
+        build_project(
+            args.geopackage,
+            args.output,
+            tianditu_token=args.tianditu_token,
+        )
+    )
     return 0
 
 
