@@ -15,7 +15,7 @@ from pathlib import Path
 # GeoPackage SQLite application id ("GP10").
 APPLICATION_ID = 1196437808
 USER_VERSION = 10300
-SCHEMA_VERSION = "6"
+SCHEMA_VERSION = "7"
 
 UUID_SQL = """(
   lower(hex(randomblob(4))) || '-' ||
@@ -313,6 +313,58 @@ WHEN EXISTS (
 )
 BEGIN
   SELECT RAISE(ABORT, 'asset type is in use');
+END;
+
+CREATE TRIGGER trg_assets_protect_delete_with_history
+BEFORE DELETE ON assets_point
+FOR EACH ROW
+WHEN EXISTS (
+  SELECT 1 FROM inspections WHERE asset_id = OLD.id
+) OR EXISTS (
+  SELECT 1 FROM repairs WHERE asset_id = OLD.id
+) OR EXISTS (
+  SELECT 1 FROM attachments WHERE asset_id = OLD.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'asset has history; mark it disabled instead');
+END;
+
+CREATE TRIGGER trg_pipelines_protect_delete_with_history
+BEFORE DELETE ON pipelines
+FOR EACH ROW
+WHEN EXISTS (
+  SELECT 1 FROM inspections WHERE pipeline_id = OLD.id
+) OR EXISTS (
+  SELECT 1 FROM repairs WHERE pipeline_id = OLD.id
+) OR EXISTS (
+  SELECT 1 FROM attachments WHERE pipeline_id = OLD.id
+) OR EXISTS (
+  SELECT 1 FROM assets_point WHERE pipeline_id = OLD.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'pipeline has linked records; mark it disabled instead');
+END;
+
+CREATE TRIGGER trg_inspections_protect_delete_with_history
+BEFORE DELETE ON inspections
+FOR EACH ROW
+WHEN EXISTS (
+  SELECT 1 FROM repairs WHERE inspection_id = OLD.id
+) OR EXISTS (
+  SELECT 1 FROM attachments WHERE inspection_id = OLD.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'inspection has linked history');
+END;
+
+CREATE TRIGGER trg_repairs_protect_delete_with_attachments
+BEFORE DELETE ON repairs
+FOR EACH ROW
+WHEN EXISTS (
+  SELECT 1 FROM attachments WHERE repair_id = OLD.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'repair has attachments');
 END;
 
 CREATE TRIGGER trg_assets_updated_at
