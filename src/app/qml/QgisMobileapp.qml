@@ -3039,6 +3039,7 @@ ApplicationWindow {
 
       QfToolButton {
         id: gnssButton
+        objectName: "gnssButton"
         state: positionSource.active ? "On" : "Off"
         visible: positionSource.valid
         round: true
