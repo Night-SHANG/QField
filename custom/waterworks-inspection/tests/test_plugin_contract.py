@@ -67,8 +67,8 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("projectFolderButton.clicked()", self.text)
         self.assertIn('text: "备份 / 导出"', self.text)
 
-    def test_worker_mode_hides_professional_qfield_controls(self) -> None:
-        self.assertIn("function applyWorkerMode(enableAdvanced)", self.text)
+    def test_single_simplified_field_interface_hides_professional_controls(self) -> None:
+        self.assertIn("function simplifyInterface()", self.text)
         for object_name in (
             "mainMenuBar",
             "mainToolbar",
@@ -79,9 +79,23 @@ class PluginContractTests(unittest.TestCase):
             "welcomeActionLocalProjects",
         ):
             self.assertIn(f'iface.findItemByObjectName("{object_name}")', self.text)
-        self.assertIn('text: "高级功能"', self.text)
-        self.assertIn('text: "当前不是供水巡检项目"', self.text)
-        self.assertIn('text: "打开供水巡检项目"', self.text)
+        self.assertNotIn("advancedMode", self.text)
+        self.assertNotIn('text: "高级功能"', self.text)
+        self.assertNotIn('text: "进入高级模式"', self.text)
+        self.assertIn('text: "还没有打开供水数据"', self.text)
+        self.assertIn('text: "打开供水数据"', self.text)
+
+    def test_pipeline_capture_reuses_qfield_digitizing(self) -> None:
+        self.assertIn("function startPipelineCapture()", self.text)
+        self.assertIn('iface.findItemByObjectName("dashBoard")', self.text)
+        self.assertIn("dashBoard.activeLayer = layer", self.text)
+        self.assertIn('mainWindow.changeMode("digitize")', self.text)
+        self.assertIn('text: "新建管线"', self.text)
+
+    def test_search_controls_are_collapsed_by_default(self) -> None:
+        self.assertIn("property bool searchPanelVisible: false", self.text)
+        self.assertIn('text: searchPanelVisible ? "收起查找" : "查找"', self.text)
+        self.assertIn("visible: searchPanelVisible", self.text)
 
     def test_worker_mode_reuses_native_gnss_button(self) -> None:
         self.assertIn('iface.findItemByObjectName("gnssButton")', self.text)
