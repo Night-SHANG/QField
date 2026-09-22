@@ -10,16 +10,18 @@ on:
       - 'CMakeLists.txt'
       - 'src/app/CMakeLists.txt'
       - '.github/workflows/waterworks-inspection-preflight.yml'
+      - '.github/workflows/waterworks-inspection-android.yml'
   pull_request:
     paths:
       - 'custom/waterworks-inspection/**'
       - 'CMakeLists.txt'
       - 'src/app/CMakeLists.txt'
       - '.github/workflows/waterworks-inspection-preflight.yml'
+      - '.github/workflows/waterworks-inspection-android.yml'
   workflow_dispatch:
 
 concurrency:
-  group: wubao-preflight-${{ github.ref }}
+  group: waterworks-inspection-preflight-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -104,5 +106,20 @@ jobs:
             echo "::error::Custom theme build hook is missing"
             failures=$((failures + 1))
           }
+
+          grep -q 'cmakeVersion: 3.31.6'             .github/workflows/waterworks-inspection-android.yml || {
+              echo "::error::Waterworks Android workflow must pin CMake 3.31.6"
+              failures=$((failures + 1))
+            }
+
+          if grep -q 'cmake-3.31.6-linux-x86_64.sh'             .github/workflows/waterworks-inspection-android.yml; then
+            echo "::error::Do not reinstall CMake with a manual wget step"
+            failures=$((failures + 1))
+          fi
+
+          grep -q 'sha256sum /tmp/waterworks-inspection-arm64-debug.apk'             .github/workflows/waterworks-inspection-android.yml || {
+              echo "::error::APK checksum verification is missing"
+              failures=$((failures + 1))
+            }
 
           exit "${failures}"
