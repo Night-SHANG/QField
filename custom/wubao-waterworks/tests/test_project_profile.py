@@ -46,6 +46,25 @@ class ProjectProfileTests(unittest.TestCase):
                 f"duplicate stored value in {key}",
             )
 
+
+    def test_every_asset_type_has_a_map_symbol(self) -> None:
+        stored_types = {
+            next(iter(item.values()))
+            for item in profile.VALUE_MAPS[("assets_point", "asset_type")]
+        }
+        self.assertEqual(stored_types, set(profile.ASSET_SYMBOLS))
+
+    def test_every_asset_status_has_a_stroke_color(self) -> None:
+        stored_statuses = {
+            next(iter(item.values()))
+            for item in profile.VALUE_MAPS[("assets_point", "status")]
+        }
+        self.assertEqual(stored_statuses, set(profile.STATUS_STROKE_COLORS))
+
+    def test_map_labels_use_custom_name_first(self) -> None:
+        self.assertIn('"name"', profile.ASSET_LABEL_EXPRESSION)
+        self.assertIn('"code"', profile.ASSET_LABEL_EXPRESSION)
+
     def test_attachment_widget_uses_relative_storage(self) -> None:
         self.assertEqual(profile.ATTACHMENT_CONFIG["RelativeStorage"], 1)
 
