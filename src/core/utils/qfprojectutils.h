@@ -45,6 +45,12 @@ class QfProjectUtils : public QObject
     Q_INVOKABLE static bool addMapLayer( QgsProject *project, QgsMapLayer *layer );
 
     /**
+     * Adds a map \a layer at the bottom of a \a project's layer tree.
+     * This is useful for runtime basemaps which must remain below business layers.
+     */
+    Q_INVOKABLE static bool addMapLayerAtBottom( QgsProject *project, QgsMapLayer *layer );
+
+    /**
      * Removes a map \a layer from a \a project layers registry.
      */
     Q_INVOKABLE static void removeMapLayer( QgsProject *project, QgsMapLayer *layer );
