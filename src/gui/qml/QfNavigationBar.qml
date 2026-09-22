@@ -588,7 +588,7 @@ Rectangle {
       id: deleteSelectedFeaturesBtn
       text: qsTr('Delete Selected Feature(s)')
       icon.source: QfTheme.getThemeVectorIcon("ic_delete_forever_white_24dp")
-      enabled: toolBar.model && toolBar.model.canDeleteSelection && projectInfo.editRights
+      enabled: toolBar.allowDelete && toolBar.model && toolBar.model.canDeleteSelection && projectInfo.editRights
       visible: enabled
       height: enabled ? 48 : 0
 
@@ -843,7 +843,7 @@ Rectangle {
       id: deleteFeatureBtn
       text: qsTr('Delete Feature')
       icon.source: QfTheme.getThemeVectorIcon("ic_delete_forever_white_24dp")
-      enabled: ((projectInfo.editRights || editButton.isCreatedCloudFeature) && (!selection.focusedLayer || !featureForm.model.featureModel.featureDeletionLocked))
+      enabled: toolBar.allowDelete && ((projectInfo.editRights || editButton.isCreatedCloudFeature) && (!selection.focusedLayer || !featureForm.model.featureModel.featureDeletionLocked))
       visible: enabled
 
       font: QfTheme.defaultFont
