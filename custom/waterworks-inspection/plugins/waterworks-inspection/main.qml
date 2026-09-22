@@ -17,6 +17,7 @@ Item {
   property var overlayFeatureFormDrawer: iface.findItemByObjectName("overlayFeatureFormDrawer")
   property var featureForm: iface.findItemByObjectName("featureForm")
   property var navigation: iface.findItemByObjectName("navigation")
+  property var projectFolderButton: iface.findItemByObjectName("projectFolderButton")
 
   readonly property var assetTypeLayerNames: ["设施类型配置", "asset_types"]
   readonly property var assetLayerNames: ["供水设施", "assets_point", "供水点位"]
@@ -109,6 +110,16 @@ Item {
       text += "  ·  精度 ±" + Math.round(Number(info.hacc)) + " m";
     }
     return text;
+  }
+
+  function openProjectBackup() {
+    if (!projectFolderButton) {
+      mainWindow.displayToast("当前版本无法打开项目导出");
+      return;
+    }
+
+    waterworksDialog.close();
+    projectFolderButton.clicked();
   }
 
   function copyCurrentPosition() {
@@ -645,6 +656,12 @@ Item {
           text: "当前位置新增点位"
           onClicked: plugin.createAssetAtCurrentPosition()
         }
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "备份 / 导出项目"
+        onClicked: plugin.openProjectBackup()
       }
 
       Rectangle {
