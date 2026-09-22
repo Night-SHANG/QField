@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a ready-to-copy Wubao waterworks QField project directory."""
+"""Create a ready-to-copy waterworks inspection QField project directory."""
 
 from __future__ import annotations
 
@@ -62,8 +62,8 @@ def build_bundle(
     for relative in profile.PROJECT_DIRECTORIES:
         (output_directory / relative).mkdir(parents=True, exist_ok=True)
 
-    geopackage = output_directory / "wubao-waterworks.gpkg"
-    project_file = output_directory / "wubao-waterworks.qgs"
+    geopackage = output_directory / "waterworks-inspection.gpkg"
+    project_file = output_directory / "waterworks-inspection.qgs"
 
     create_geopackage.create_geopackage(geopackage)
 
@@ -81,10 +81,10 @@ def build_bundle(
 
     readme = output_directory / "README.txt"
     readme.write_text(
-        "吴堡供水巡检项目\n"
+        "供水巡检项目\n"
         "================\n"
-        "主项目: wubao-waterworks.qgs\n"
-        "业务数据: wubao-waterworks.gpkg\n"
+        "主项目: waterworks-inspection.qgs\n"
+        "业务数据: waterworks-inspection.gpkg\n"
         "附件目录: attachments/\n"
         "离线底图: basemaps/（如有）\n\n"
         "整个文件夹可作为一个 QField 项目整体复制/备份。\n",
@@ -96,7 +96,7 @@ def build_bundle(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Build a ready-to-copy Wubao waterworks QField project"
+        description="Build a ready-to-copy waterworks inspection QField project"
     )
     parser.add_argument("output_directory", type=Path)
     parser.add_argument(
