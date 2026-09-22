@@ -36,6 +36,7 @@ def require_qgis():
             QgsProperty,
             QgsRendererCategory,
             QgsRasterLayer,
+            QgsSingleSymbolRenderer,
             QgsRelation,
             QgsSymbolLayer,
             QgsTextBufferSettings,
@@ -66,6 +67,7 @@ def require_qgis():
         "QgsProperty": QgsProperty,
         "QgsRendererCategory": QgsRendererCategory,
         "QgsRasterLayer": QgsRasterLayer,
+        "QgsSingleSymbolRenderer": QgsSingleSymbolRenderer,
         "QgsRelation": QgsRelation,
         "QgsSymbolLayer": QgsSymbolLayer,
         "QgsTextBufferSettings": QgsTextBufferSettings,
@@ -139,6 +141,7 @@ def configure_map_style(api, layers):
     QgsPalLayerSettings = api["QgsPalLayerSettings"]
     QgsProperty = api["QgsProperty"]
     QgsRendererCategory = api["QgsRendererCategory"]
+    QgsSingleSymbolRenderer = api["QgsSingleSymbolRenderer"]
     QgsSymbolLayer = api["QgsSymbolLayer"]
     QgsTextBufferSettings = api["QgsTextBufferSettings"]
     QgsTextFormat = api["QgsTextFormat"]
@@ -209,7 +212,9 @@ def configure_map_style(api, layers):
         QgsSymbolLayer.Property.PropertyStrokeColor,
         QgsProperty.fromExpression(status_expression),
     )
-    layers["pipelines"].renderer().setSymbol(pipeline_symbol)
+    layers["pipelines"].setRenderer(
+        QgsSingleSymbolRenderer(pipeline_symbol)
+    )
 
 
 def add_offline_basemap(api, project, path: Path):
