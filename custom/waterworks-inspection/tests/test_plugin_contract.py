@@ -61,14 +61,23 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('statusValue === "problem"', self.text)
         self.assertIn("'attention', 'repair'", self.text)
 
-    def test_repair_workflow_reuses_qfield_add_form(self) -> None:
-        self.assertIn("readonly property var repairLayerNames", self.text)
-        self.assertIn("function createRepair(assetId)", self.text)
-        self.assertIn('feature.setAttribute("asset_id", assetId)', self.text)
+    def test_shared_field_workflows_support_assets_and_pipelines(self) -> None:
+        self.assertIn("readonly property var pipelineLayerNames", self.text)
+        self.assertIn("function searchObjects(term)", self.text)
+        self.assertIn("function setParentReference(feature, objectId, objectKind)", self.text)
+        self.assertIn("function createInspection(objectId, objectKind)", self.text)
+        self.assertIn("function createRepair(objectId, objectKind)", self.text)
+        self.assertIn("function createAttachment(objectId, objectKind)", self.text)
+        self.assertIn('feature.setAttribute("pipeline_id", objectId)', self.text)
+        self.assertIn('feature.setAttribute("asset_id", objectId)', self.text)
 
-    def test_search_results_include_distance_role(self) -> None:
+    def test_search_results_support_object_kind_and_distance(self) -> None:
+        self.assertIn('"objectKind": objectKind', self.text)
         self.assertIn('"assetDistance":', self.text)
+        self.assertIn("required property string objectKind", self.text)
         self.assertIn("required property int assetDistance", self.text)
+        self.assertIn('value: "pipeline"', self.text)
+        self.assertIn('visible: objectKind === "asset"', self.text)
 
     def test_field_capture_surfaces_accuracy_warning(self) -> None:
         self.assertIn("accuracyWarningMeters: 15", self.text)
