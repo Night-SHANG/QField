@@ -90,15 +90,15 @@ class GeoPackageSchemaTests(unittest.TestCase):
         self.assertEqual(len(first), 36)
         self.assertNotEqual(first, second)
 
-    def test_attachment_has_exactly_one_parent(self) -> None:
+    def test_attachment_requires_one_parent_and_one_media(self) -> None:
         with sqlite3.connect(self.path) as db:
             asset_id = "22222222-2222-2222-2222-222222222222"
             inspection_id = "33333333-3333-3333-3333-333333333333"
 
             db.execute(
                 """
-                INSERT INTO attachments(asset_id, media_type, file_path)
-                VALUES (?, 'photo', 'attachments/a.jpg')
+                INSERT INTO attachments(asset_id, photo_path)
+                VALUES (?, 'attachments/a.jpg')
                 """,
                 (asset_id,),
             )
@@ -107,8 +107,8 @@ class GeoPackageSchemaTests(unittest.TestCase):
                 db.execute(
                     """
                     INSERT INTO attachments(
-                        asset_id, inspection_id, media_type, file_path
-                    ) VALUES (?, ?, 'photo', 'attachments/invalid.jpg')
+                        asset_id, inspection_id, photo_path
+                    ) VALUES (?, ?, 'attachments/invalid-parent.jpg')
                     """,
                     (asset_id, inspection_id),
                 )
@@ -116,10 +116,37 @@ class GeoPackageSchemaTests(unittest.TestCase):
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute(
                     """
-                    INSERT INTO attachments(media_type, file_path)
-                    VALUES ('photo', 'attachments/orphan.jpg')
-                    """
+                    INSERT INTO attachments(asset_id)
+                    VALUES (?)
+                    """,
+                    (asset_id,),
                 )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                db.execute(
+                    """
+                    INSERT INTO attachments(
+                        asset_id, photo_path, video_path
+                    ) VALUES (?, 'attachments/a.jpg', 'attachments/a.mp4')
+                    """,
+                    (asset_id,),
+                )
+
+    def test_attachment_media_columns_cover_qfield_capture_modes(self) -> None:
+        with sqlite3.connect(self.path) as db:
+            columns = {
+                row[1]
+                for row in db.execute("PRAGMA table_info(attachments)")
+            }
+
+        self.assertTrue(
+            {
+                "photo_path",
+                "video_path",
+                "audio_path",
+                "document_path",
+            }.issubset(columns)
+        )
 
     def test_history_tables_are_not_delete_cascaded(self) -> None:
         with sqlite3.connect(self.path) as db:
