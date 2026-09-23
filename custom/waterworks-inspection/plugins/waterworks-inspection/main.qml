@@ -62,10 +62,6 @@ Item {
     "供水底图 天地图矢量注记",
     "供水底图 天地图影像",
     "供水底图 天地图影像注记",
-    "供水底图 天地图矢量",
-    "供水底图 天地图矢量注记",
-    "供水底图 天地图影像",
-    "供水底图 天地图影像注记",
     "供水底图 陕西天地图矢量",
     "供水底图 陕西天地图影像",
     "供水底图 陕西天地图影像注记",
@@ -538,6 +534,14 @@ Item {
     for (let i = 0; i < services.length; i++) {
       const serviceName = services[i];
       const request = new XMLHttpRequest();
+      let finished = false;
+      const finish = function(status, contentType) {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        recordTiandituProbeResult(generation, serviceName, status, contentType);
+      };
       request.open("GET", tiandituNationalTileUrl(serviceName, z, x, y));
       request.responseType = "arraybuffer";
       request.onreadystatechange = function() {
@@ -550,10 +554,10 @@ Item {
         } catch (error) {
           contentType = "";
         }
-        recordTiandituProbeResult(generation, serviceName, request.status, contentType);
+        finish(request.status, contentType);
       };
       request.onerror = function() {
-        recordTiandituProbeResult(generation, serviceName, 0, "");
+        finish(0, "");
       };
       request.send();
     }
@@ -3197,7 +3201,6 @@ Item {
         Layout.fillWidth: true
         text: "建议关闭代理/VPN后测试；OSM 是否可用不代表天地图网络状态"
         color: QfTheme.secondaryTextColor
-        wrapMode: Text.WordWrap
         wrapMode: Text.WordWrap
       }
 
