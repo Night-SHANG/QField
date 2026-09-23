@@ -22,6 +22,7 @@
 #include <qgsattributeeditorcontainer.h>
 #include <qgsattributeeditorfield.h>
 #include <qgsattributeeditorrelation.h>
+#include <qgsdatasourceuri.h>
 #include <qgsmaplayer.h>
 #include <qgslayertree.h>
 #include <qgsprojectdisplaysettings.h>
@@ -163,6 +164,156 @@ QVariantMap QfProjectUtils::replaceRasterBasemap( QgsProject *project,
 
   result.insert( QStringLiteral( "success" ), true );
   result.insert( QStringLiteral( "layerNames" ), layerNames );
+  result.insert( QStringLiteral( "error" ), QString() );
+  return result;
+}
+
+
+QVariantMap QfProjectUtils::replaceBasemapLayers( QgsProject *project,
+                                                   const QStringList &managedLayerNames,
+                                                   const QVariantList &layerDefinitions,
+                                                   bool removeAllRasterAndVectorTiles )
+{
+  QVariantMap result;
+  result.insert( QStringLiteral( "success" ), false );
+
+  if ( !project )
+  {
+    result.insert( QStringLiteral( "error" ), QStringLiteral( "地图工程不可用" ) );
+    return result;
+  }
+
+  if ( layerDefinitions.isEmpty() )
+  {
+    result.insert( QStringLiteral( "error" ), QStringLiteral( "底图配置为空" ) );
+    return result;
+  }
+
+  QgsLayerTree *root = project->layerTreeRoot();
+  if ( !root )
+  {
+    result.insert( QStringLiteral( "error" ), QStringLiteral( "地图图层树不可用" ) );
+    return result;
+  }
+
+  QList<QgsMapLayer *> replacementLayers;
+  QStringList replacementNames;
+
+  auto cleanupPending = [&replacementLayers]() {
+    for ( QgsMapLayer *layer : replacementLayers )
+      delete layer;
+    replacementLayers.clear();
+  };
+
+  for ( const QVariant &definitionValue : layerDefinitions )
+  {
+    const QVariantMap definition = definitionValue.toMap();
+    const QString kind = definition.value( QStringLiteral( "kind" ) ).toString();
+    const QString name = definition.value( QStringLiteral( "name" ) ).toString();
+    QgsMapLayer *layer = nullptr;
+
+    if ( name.isEmpty() )
+    {
+      cleanupPending();
+      result.insert( QStringLiteral( "error" ), QStringLiteral( "底图图层名称为空" ) );
+      return result;
+    }
+
+    if ( kind == QStringLiteral( "raster" ) )
+    {
+      const QString source = definition.value( QStringLiteral( "source" ) ).toString();
+      const QString provider = definition.value( QStringLiteral( "provider" ), QStringLiteral( "wms" ) ).toString();
+      layer = new QgsRasterLayer( source, name, provider );
+    }
+    else if ( kind == QStringLiteral( "vector-tile" ) )
+    {
+      const QString styleUrl = definition.value( QStringLiteral( "styleUrl" ) ).toString();
+      if ( styleUrl.isEmpty() )
+      {
+        cleanupPending();
+        result.insert( QStringLiteral( "error" ), QStringLiteral( "%1 缺少矢量样式地址" ).arg( name ) );
+        return result;
+      }
+
+      QgsDataSourceUri uri;
+      uri.setParam( QStringLiteral( "type" ), QStringLiteral( "xyz" ) );
+      uri.setParam( QStringLiteral( "styleUrl" ), styleUrl );
+      QString encodedUri = uri.encodedUri();
+      QgsVectorTileUtils::updateUriSources( encodedUri );
+
+      QgsVectorTileLayer *vectorLayer = new QgsVectorTileLayer( encodedUri, name );
+      QString styleError;
+      QStringList styleWarnings;
+      QList<QgsMapLayer *> subLayers;
+      vectorLayer->loadDefaultStyleAndSubLayers( styleError, styleWarnings, subLayers );
+      layer = vectorLayer;
+    }
+    else
+    {
+      cleanupPending();
+      result.insert( QStringLiteral( "error" ), QStringLiteral( "不支持的底图类型：%1" ).arg( kind ) );
+      return result;
+    }
+
+    if ( !layer || !layer->isValid() )
+    {
+      delete layer;
+      cleanupPending();
+      result.insert( QStringLiteral( "error" ), QStringLiteral( "%1 图层无效" ).arg( name ) );
+      return result;
+    }
+
+    layer->setCustomProperty( QStringLiteral( "waterworks/runtime_basemap" ), true );
+    replacementLayers.append( layer );
+    replacementNames.append( name );
+  }
+
+  const QMap<QString, QgsMapLayer *> existingLayers = project->mapLayers();
+  QStringList layersToRemove;
+  for ( auto it = existingLayers.constBegin(); it != existingLayers.constEnd(); ++it )
+  {
+    QgsMapLayer *layer = it.value();
+    if ( !layer )
+      continue;
+
+    const bool explicitlyManaged = managedLayerNames.contains( layer->name() ) ||
+                                   layer->customProperty( QStringLiteral( "waterworks/runtime_basemap" ), false ).toBool();
+    const bool genericBasemap = removeAllRasterAndVectorTiles &&
+                                ( dynamic_cast<QgsRasterLayer *>( layer ) != nullptr ||
+                                  dynamic_cast<QgsVectorTileLayer *>( layer ) != nullptr );
+    if ( explicitlyManaged || genericBasemap )
+      layersToRemove.append( it.key() );
+  }
+
+  for ( const QString &layerId : layersToRemove )
+    project->removeMapLayer( layerId );
+
+  QStringList addedLayerIds;
+  QList<QgsMapLayer *> addedLayers;
+  for ( QgsMapLayer *layer : replacementLayers )
+  {
+    if ( !project->addMapLayer( layer, false ) )
+    {
+      for ( QgsMapLayer *pendingLayer : replacementLayers )
+      {
+        if ( !addedLayers.contains( pendingLayer ) )
+          delete pendingLayer;
+      }
+      for ( const QString &addedLayerId : addedLayerIds )
+        project->removeMapLayer( addedLayerId );
+
+      result.insert( QStringLiteral( "error" ), QStringLiteral( "无法把底图加入当前工程" ) );
+      return result;
+    }
+
+    root->addLayer( layer );
+    addedLayerIds.append( layer->id() );
+    addedLayers.append( layer );
+  }
+
+  result.insert( QStringLiteral( "success" ), true );
+  result.insert( QStringLiteral( "layerNames" ), replacementNames );
+  result.insert( QStringLiteral( "removedLayerCount" ), layersToRemove.size() );
   result.insert( QStringLiteral( "error" ), QString() );
   return result;
 }
