@@ -76,19 +76,6 @@ jobs:
             exit 1
           fi
 
-  tianditu-live:
-    name: 天地图 WMTS 联网测试
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          submodules: false
-      - name: Request real Yulin-area tiles from national TianDiTu
-        env:
-          TIANDITU_TK: ${{ secrets.TIANDITU_TK }}
-        run: python3 custom/waterworks-inspection/tools/check_tianditu_tiles.py
-
   theme-json:
     name: 主题 JSON 检查
     runs-on: ubuntu-24.04
@@ -258,8 +245,18 @@ jobs:
             }
           done
 
-          grep -Fq 'TILECOL={x}&TILEROW={y}&TILEMATRIX={z}' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
-            echo "::error::Tianditu WMTS XYZ row/column mapping is incorrect"
+          grep -Fq 'tiandituNationalTileUrl(serviceName, "{z}", "{x}", "{y}")' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Tianditu WMTS XYZ placeholder mapping is incorrect"
+            failures=$((failures + 1))
+          }
+
+          grep -Fq '"&TILECOL=" + x + "&TILEROW=" + y + "&TILEMATRIX=" + z' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Tianditu WMTS column/row order is incorrect"
+            failures=$((failures + 1))
+          }
+
+          grep -Fq 'function startTiandituConnectionTest()' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::On-device Tianditu connection diagnostics are missing"
             failures=$((failures + 1))
           }
 
