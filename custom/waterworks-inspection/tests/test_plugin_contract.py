@@ -197,8 +197,10 @@ class PluginContractTests(unittest.TestCase):
 
     def test_basemap_switcher_keeps_business_data_separate(self) -> None:
         self.assertIn("function applyBasemap(mode, showToast)", self.text)
-        self.assertIn("function removeManagedBasemapLayers()", self.text)
-        self.assertIn("QfProjectUtils.addMapLayerAtBottom", self.text)
+        self.assertIn("function replaceManagedBasemap(sources, names)", self.text)
+        self.assertIn("QfProjectUtils.replaceRasterBasemap", self.text)
+        self.assertIn("function initialBasemapMode()", self.text)
+        self.assertIn('hasTiandituToken() ? "tdt-vector" : "osm"', self.text)
         self.assertIn('"tdt-vector"', self.text)
         self.assertIn('"tdt-imagery"', self.text)
         self.assertIn('"osm"', self.text)
@@ -206,6 +208,7 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('"cva_w"', self.text)
         self.assertIn('"img_w"', self.text)
         self.assertIn('"cia_w"', self.text)
+        self.assertIn("t0.tianditu.gov.cn/DataServer", self.text)
 
     def test_tianditu_key_is_not_hardcoded_in_plugin(self) -> None:
         self.assertIn('import "TiandituConfig.js" as TiandituConfig', self.text)
