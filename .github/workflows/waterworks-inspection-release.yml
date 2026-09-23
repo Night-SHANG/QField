@@ -19,10 +19,10 @@ jobs:
     name: 发布 APK 到 GitHub Release
     runs-on: ubuntu-24.04
     env:
-      SOURCE_RUN_ID: "35802332785"
-      RELEASE_TARGET_SHA: "2d7a13bcbca56415bd7f2dd650db1818d753f4b6"
-      RELEASE_TAG: "waterworks-inspection-test-2d7a13b"
-      RELEASE_TITLE: "供水巡检测试版 2d7a13b"
+      SOURCE_RUN_ID: "35805404320"
+      RELEASE_TARGET_SHA: "2dcbee1d5730e69327aca41cd985797de1bd9478"
+      RELEASE_TAG: "waterworks-inspection-test-2dcbee1"
+      RELEASE_TITLE: "供水巡检测试版 2dcbee1"
     steps:
       - name: Download successful Android artifact
         env:
