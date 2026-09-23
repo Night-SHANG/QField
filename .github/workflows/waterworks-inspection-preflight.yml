@@ -227,28 +227,25 @@ jobs:
             failures=$((failures + 1))
           }
 
-          grep -q 'shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
-            echo "::error::Official Shaanxi Tianditu service endpoint is missing"
+          grep -q 't0.tianditu.gov.cn/' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::National Tianditu endpoint is missing"
             failures=$((failures + 1))
           }
 
-          grep -q 'sxww2022Geo/' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
-            echo "::error::Official Shaanxi vector tile service is missing"
+          grep -q '/wmts?SERVICE=WMTS&REQUEST=GetTile' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::National Tianditu WMTS tile template is missing"
             failures=$((failures + 1))
           }
 
-          grep -q 'SxImgMap' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
-            echo "::error::Official Shaanxi imagery service is missing"
-            failures=$((failures + 1))
-          }
+          for service in vec_w cva_w img_w cia_w; do
+            grep -q "\"\${service}\"" custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+              echo "::error::Missing Tianditu service \${service}"
+              failures=$((failures + 1))
+            }
+          done
 
-          grep -q 'SxImgLabelMap' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
-            echo "::error::Official Shaanxi imagery label service is missing"
-            failures=$((failures + 1))
-          }
-
-          if grep -q 't0.tianditu.gov.cn/DataServer' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml; then
-            echo "::error::Do not use the national Tianditu DataServer with the Shaanxi service token"
+          if grep -q 'shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml; then
+            echo "::error::Do not mix the national cloudcenter key with Shaanxi local service endpoints"
             failures=$((failures + 1))
           fi
 
