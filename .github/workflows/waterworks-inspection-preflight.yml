@@ -222,15 +222,35 @@ jobs:
             failures=$((failures + 1))
           }
 
-          grep -q 'Q_INVOKABLE static QVariantMap replaceRasterBasemap' src/core/utils/qfprojectutils.h || {
-            echo "::error::Atomic runtime basemap replacement hook is missing"
+          grep -q 'Q_INVOKABLE static QVariantMap replaceBasemapLayers' src/core/utils/qfprojectutils.h || {
+            echo "::error::Mixed runtime basemap replacement hook is missing"
             failures=$((failures + 1))
           }
 
-          grep -q 't0.tianditu.gov.cn/DataServer' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
-            echo "::error::Tianditu DataServer XYZ endpoint is missing"
+          grep -q 'shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Official Shaanxi Tianditu service endpoint is missing"
             failures=$((failures + 1))
           }
+
+          grep -q 'sxww2022Geo/' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Official Shaanxi vector tile service is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'SxImgMap' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Official Shaanxi imagery service is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'SxImgLabelMap' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Official Shaanxi imagery label service is missing"
+            failures=$((failures + 1))
+          }
+
+          if grep -q 't0.tianditu.gov.cn/DataServer' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml; then
+            echo "::error::Do not use the national Tianditu DataServer with the Shaanxi service token"
+            failures=$((failures + 1))
+          fi
 
           grep -q 'hasTiandituToken() ? "tdt-vector" : "osm"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
             echo "::error::Tianditu must be the first-run preferred basemap when configured"
