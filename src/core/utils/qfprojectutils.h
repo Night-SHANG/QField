@@ -64,6 +64,21 @@ class QfProjectUtils : public QObject
                                                          const QString &provider = QStringLiteral( "wms" ) );
 
     /**
+     * Atomically replaces basemap layers using raster and/or vector-tile definitions.
+     *
+     * Each definition must contain a "kind" ("raster" or "vector-tile") and
+     * a "name". Raster definitions use "source" and optional "provider".
+     * Vector-tile definitions use "styleUrl".
+     *
+     * When a removeAllRasterAndVectorTiles is true, existing raster and
+     * vector-tile layers are treated as basemaps and removed as well.
+     */
+    Q_INVOKABLE static QVariantMap replaceBasemapLayers( QgsProject *project,
+                                                         const QStringList &managedLayerNames,
+                                                         const QVariantList &layerDefinitions,
+                                                         bool removeAllRasterAndVectorTiles = false );
+
+    /**
      * Removes a map \a layer from a \a project layers registry.
      */
     Q_INVOKABLE static void removeMapLayer( QgsProject *project, QgsMapLayer *layer );
