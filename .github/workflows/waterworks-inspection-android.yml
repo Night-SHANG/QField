@@ -60,8 +60,25 @@ jobs:
 
           exit "${failures}"
 
+  tianditu-live:
+    name: 天地图 WMTS 联网门禁
+    needs: preflight
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          submodules: false
+      - name: Request real Yulin-area tiles from national TianDiTu
+        env:
+          TIANDITU_TK: ${{ secrets.TIANDITU_TK }}
+        run: python3 custom/waterworks-inspection/tools/check_tianditu_tiles.py
+
   android-arm64:
     name: Android arm64 Debug APK
+    needs:
+      - preflight
+      - tianditu-live
     runs-on: ubuntu-24.04
 
     steps:
