@@ -117,7 +117,8 @@ QVariantMap QfProjectUtils::replaceRasterBasemap( QgsProject *project,
     {
       const QString invalidName = layerNames.at( i );
       delete layer;
-      qDeleteAll( replacementLayers );
+      for ( QgsRasterLayer *pendingLayer : replacementLayers )
+        delete pendingLayer;
       result.insert( QStringLiteral( "error" ), QStringLiteral( "%1 图层无效" ).arg( invalidName ) );
       return result;
     }
