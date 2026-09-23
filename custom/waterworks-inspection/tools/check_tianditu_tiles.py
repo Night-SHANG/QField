@@ -68,8 +68,13 @@ def main() -> int:
         request = urllib.request.Request(
             tile_url(service_name, layer_name, token),
             headers={
-                "User-Agent": "QField-Waterworks-Tianditu-Smoke/1.0",
-                "Accept": "image/*,*/*;q=0.8",
+                "User-Agent": (
+                    "Mozilla/5.0 (Linux; Android 14) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/126.0 Mobile Safari/537.36"
+                ),
+                "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7",
             },
         )
         try:
@@ -79,7 +84,17 @@ def main() -> int:
                 content_type = response.headers.get_content_type()
         except urllib.error.HTTPError as exc:
             # Never print exc.url: it contains the secret token.
-            print(f"ERROR: {service_name} HTTP {exc.code}", file=sys.stderr)
+            try:
+                body = exc.read(512)
+            except Exception:
+                body = b""
+            preview = body.decode("utf-8", errors="replace").replace("\n", " ")[:240]
+            content_type = exc.headers.get("Content-Type", "") if exc.headers else ""
+            print(
+                f"ERROR: {service_name} HTTP {exc.code} "
+                f"content-type={content_type!r} preview={preview!r}",
+                file=sys.stderr,
+            )
             failures += 1
             continue
         except Exception as exc:
