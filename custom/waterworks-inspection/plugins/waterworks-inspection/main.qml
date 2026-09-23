@@ -66,6 +66,7 @@ Item {
     property bool showMyLocationMarker: true
     property bool editEnabled: false
     property string basemapMode: "osm"
+    property bool basemapPreferenceInitialized: false
     property string tiandituToken: ""
   }
   property int nearbyRadiusMeters: 500
@@ -79,7 +80,7 @@ Item {
       if (!iface.hasProjectOnLaunch() && (!qgisProject || !qgisProject.fileName)) {
         createDefaultWaterworksProject();
       } else if (qgisProject && qgisProject.fileName) {
-        applyBasemap(workerAppSettings.basemapMode, false);
+        applyBasemap(initialBasemapMode(), false);
       }
     });
   }
@@ -93,7 +94,7 @@ Item {
         ensureBusinessLayers(path);
         refreshProjectState();
         simplifyInterface();
-        applyBasemap(workerAppSettings.basemapMode, false);
+        applyBasemap(initialBasemapMode(), false);
         activateAndCenterLocation();
       });
     }
@@ -417,38 +418,43 @@ Item {
       return "";
     }
 
-    const layerName = String(serviceName).split("_")[0];
-    const url = "https://t0.tianditu.gov.cn/" + serviceName + "/wmts" +
-                "?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
-                "&LAYER=" + layerName +
-                "&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles" +
-                "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}" +
+    // Tianditu's DataServer endpoint maps directly to XYZ z/x/y semantics,
+    // avoiding WMTS query-template ambiguity inside QGIS' WMS provider URI.
+    const url = "https://t0.tianditu.gov.cn/DataServer" +
+                "?T=" + encodeURIComponent(serviceName) +
+                "&x={x}&y={y}&l={z}" +
                 "&tk=" + encodeURIComponent(token);
     return "type=xyz&tilePixelRatio=1&url=" + encodeURIComponent(url) +
            "&zmin=0&zmax=18&crs=EPSG3857";
   }
 
-  function removeManagedBasemapLayers() {
-    if (!qgisProject) {
-      return;
+  function initialBasemapMode() {
+    if (!workerAppSettings.basemapPreferenceInitialized) {
+      workerAppSettings.basemapPreferenceInitialized = true;
+      workerAppSettings.basemapMode = hasTiandituToken() ? "tdt-vector" : "osm";
     }
-    for (let i = 0; i < managedBasemapLayerNames.length; i++) {
-      const layers = qgisProject.mapLayersByName(managedBasemapLayerNames[i]);
-      if (!layers) {
-        continue;
-      }
-      for (let j = 0; j < layers.length; j++) {
-        QfProjectUtils.removeMapLayer(qgisProject, layers[j]);
-      }
-    }
+    return workerAppSettings.basemapMode || (hasTiandituToken() ? "tdt-vector" : "osm");
   }
 
-  function addRuntimeBasemapLayer(source, name) {
-    const layer = QfLayerUtils.loadRasterLayer(source, name, "wms");
-    if (!layer || !layer.isValid) {
-      return false;
+  function basemapModeLabel(mode) {
+    if (mode === "tdt-vector") {
+      return "天地图矢量";
     }
-    return QfProjectUtils.addMapLayerAtBottom(qgisProject, layer);
+    if (mode === "tdt-imagery") {
+      return "天地图影像";
+    }
+    return "OSM";
+  }
+
+  function replaceManagedBasemap(sources, names) {
+    const result = QfProjectUtils.replaceRasterBasemap(
+      qgisProject,
+      managedBasemapLayerNames,
+      sources,
+      names,
+      "wms"
+    );
+    return result || {"success": false, "error": "底图切换失败"};
   }
 
   function applyBasemap(mode, showToast) {
@@ -456,52 +462,44 @@ Item {
       return false;
     }
 
-    let requestedMode = mode || "osm";
+    let requestedMode = mode || initialBasemapMode();
     if (requestedMode !== "osm" && !hasTiandituToken()) {
-      workerAppSettings.basemapMode = "osm";
-      requestedMode = "osm";
       if (showToast) {
-        mainWindow.displayToast("请先配置天地图密钥，已继续使用 OSM");
+        mainWindow.displayToast("天地图密钥不可用，无法切换");
       }
+      return false;
     }
 
-    removeManagedBasemapLayers();
-
-    let ok = false;
+    let sources = [];
+    let names = [];
     if (requestedMode === "tdt-vector") {
-      // Add annotation first, then base. Both are inserted at the bottom,
-      // leaving labels above the base and all business layers above both.
-      const labelsOk = addRuntimeBasemapLayer(tiandituXyzSource("cva_w"), "供水底图 天地图矢量注记");
-      const baseOk = addRuntimeBasemapLayer(tiandituXyzSource("vec_w"), "供水底图 天地图矢量");
-      ok = labelsOk && baseOk;
+      // Annotation is inserted before the base so it remains above the base
+      // while both stay below all business layers.
+      sources = [tiandituXyzSource("cva_w"), tiandituXyzSource("vec_w")];
+      names = ["供水底图 天地图矢量注记", "供水底图 天地图矢量"];
     } else if (requestedMode === "tdt-imagery") {
-      const labelsOk = addRuntimeBasemapLayer(tiandituXyzSource("cia_w"), "供水底图 天地图影像注记");
-      const baseOk = addRuntimeBasemapLayer(tiandituXyzSource("img_w"), "供水底图 天地图影像");
-      ok = labelsOk && baseOk;
+      sources = [tiandituXyzSource("cia_w"), tiandituXyzSource("img_w")];
+      names = ["供水底图 天地图影像注记", "供水底图 天地图影像"];
     } else {
-      ok = addRuntimeBasemapLayer(fallbackBasemapSource, "供水底图 OSM");
       requestedMode = "osm";
+      sources = [fallbackBasemapSource];
+      names = ["供水底图 OSM"];
     }
 
-    if (!ok && requestedMode !== "osm") {
-      removeManagedBasemapLayers();
-      ok = addRuntimeBasemapLayer(fallbackBasemapSource, "供水底图 OSM");
-      requestedMode = "osm";
+    const result = replaceManagedBasemap(sources, names);
+    const ok = !!result.success;
+    if (!ok) {
       if (showToast) {
-        mainWindow.displayToast("天地图加载失败，已切回 OSM");
+        mainWindow.displayToast("底图切换失败：" + String(result.error || "图层无效"));
       }
+      return false;
     }
 
-    if (ok) {
-      workerAppSettings.basemapMode = requestedMode;
-      if (showToast) {
-        const label = requestedMode === "tdt-vector"
-          ? "天地图矢量"
-          : (requestedMode === "tdt-imagery" ? "天地图影像" : "OSM");
-        mainWindow.displayToast("已切换到底图：" + label);
-      }
+    workerAppSettings.basemapMode = requestedMode;
+    if (showToast) {
+      mainWindow.displayToast("已切换到底图：" + basemapModeLabel(requestedMode));
     }
-    return ok;
+    return true;
   }
 
   function saveLocalTiandituToken(value) {
@@ -3008,6 +3006,12 @@ Item {
                            : (workerAppSettings.basemapMode === "tdt-imagery" ? 2 : 0);
           }
         }
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "当前底图：" + plugin.basemapModeLabel(workerAppSettings.basemapMode)
+        color: QfTheme.mainTextColor
       }
 
       Label {
