@@ -79,6 +79,91 @@ bool QfProjectUtils::addMapLayerAtBottom( QgsProject *project, QgsMapLayer *laye
   return true;
 }
 
+QVariantMap QfProjectUtils::replaceRasterBasemap( QgsProject *project,
+                                                      const QStringList &managedLayerNames,
+                                                      const QStringList &sources,
+                                                      const QStringList &layerNames,
+                                                      const QString &provider )
+{
+  QVariantMap result;
+  result.insert( QStringLiteral( "success" ), false );
+
+  if ( !project )
+  {
+    result.insert( QStringLiteral( "error" ), QStringLiteral( "地图工程不可用" ) );
+    return result;
+  }
+
+  if ( sources.isEmpty() || sources.size() != layerNames.size() )
+  {
+    result.insert( QStringLiteral( "error" ), QStringLiteral( "底图配置不完整" ) );
+    return result;
+  }
+
+  QgsLayerTree *root = project->layerTreeRoot();
+  if ( !root )
+  {
+    result.insert( QStringLiteral( "error" ), QStringLiteral( "地图图层树不可用" ) );
+    return result;
+  }
+
+  QList<QgsRasterLayer *> replacementLayers;
+  replacementLayers.reserve( sources.size() );
+
+  for ( int i = 0; i < sources.size(); ++i )
+  {
+    QgsRasterLayer *layer = new QgsRasterLayer( sources.at( i ), layerNames.at( i ), provider );
+    if ( !layer->isValid() )
+    {
+      const QString invalidName = layerNames.at( i );
+      delete layer;
+      qDeleteAll( replacementLayers );
+      result.insert( QStringLiteral( "error" ), QStringLiteral( "%1 图层无效" ).arg( invalidName ) );
+      return result;
+    }
+    replacementLayers.append( layer );
+  }
+
+  const QMap<QString, QgsMapLayer *> existingLayers = project->mapLayers();
+  QStringList managedLayerIds;
+  for ( auto it = existingLayers.constBegin(); it != existingLayers.constEnd(); ++it )
+  {
+    QgsMapLayer *layer = it.value();
+    if ( layer && managedLayerNames.contains( layer->name() ) )
+      managedLayerIds.append( it.key() );
+  }
+
+  for ( const QString &layerId : managedLayerIds )
+    project->removeMapLayer( layerId );
+
+  QStringList addedLayerIds;
+  for ( QgsRasterLayer *layer : replacementLayers )
+  {
+    if ( !project->addMapLayer( layer, false ) )
+    {
+      for ( const QString &addedLayerId : addedLayerIds )
+        project->removeMapLayer( addedLayerId );
+
+      for ( QgsRasterLayer *pendingLayer : replacementLayers )
+      {
+        if ( !addedLayerIds.contains( pendingLayer->id() ) )
+          delete pendingLayer;
+      }
+
+      result.insert( QStringLiteral( "error" ), QStringLiteral( "无法把底图加入当前工程" ) );
+      return result;
+    }
+
+    root->addLayer( layer );
+    addedLayerIds.append( layer->id() );
+  }
+
+  result.insert( QStringLiteral( "success" ), true );
+  result.insert( QStringLiteral( "layerNames" ), layerNames );
+  result.insert( QStringLiteral( "error" ), QString() );
+  return result;
+}
+
 void QfProjectUtils::removeMapLayer( QgsProject *project, QgsMapLayer *layer )
 {
   if ( !project || !layer )
