@@ -1,5 +1,5 @@
 ---
-name: 🚰 发布供水巡检测试 APK
+name: 🚰 发布供水巡检正式 APK
 
 on:
   push:
@@ -21,28 +21,36 @@ jobs:
     env:
       SOURCE_RUN_ID: "35829747874"
       RELEASE_TARGET_SHA: "628c98bf74085dc7ed7d1f017d53dcd1c735ee9b"
-      RELEASE_TAG: "waterworks-inspection-test-628c98b-browserkey"
-      RELEASE_TITLE: "供水巡检测试版 628c98b 浏览器端Key"
+      RELEASE_TAG: "waterworks-inspection-v1.0.0"
+      RELEASE_TITLE: "供水巡检 v1.0.0"
     steps:
-      - name: Download successful Android artifact
+      - name: Download verified Android artifact
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_ARTIFACT_ID: "10745137630"
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
-          gh run download "${SOURCE_RUN_ID}"             --repo "${GITHUB_REPOSITORY}"             --name waterworks-inspection-arm64-debug             --dir dist
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > /tmp/waterworks-artifact.zip
+          unzip -q /tmp/waterworks-artifact.zip -d dist
           test -s dist/waterworks-inspection-arm64-debug.apk
+          mv dist/waterworks-inspection-arm64-debug.apk dist/waterworks-inspection-arm64-v1.0.0.apk
 
-      - name: Publish prerelease
+      - name: Publish stable release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          APK="dist/waterworks-inspection-arm64-debug.apk"
+          APK="dist/waterworks-inspection-arm64-v1.0.0.apk"
           if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release upload "${RELEASE_TAG}" "${APK}"               --repo "${GITHUB_REPOSITORY}"               --clobber
+            gh release upload "${RELEASE_TAG}" "${APK}" --repo "${GITHUB_REPOSITORY}" --clobber
           else
-            gh release create "${RELEASE_TAG}" "${APK}"               --repo "${GITHUB_REPOSITORY}"               --target "${RELEASE_TARGET_SHA}"               --title "${RELEASE_TITLE}"               --prerelease               --notes "ARM64 Debug 测试 APK。包含 OSM / 天地图矢量 / 天地图影像底图切换，以及本轮点位类型中文显示、附件媒体保存和拍照自动确认修复。对应提交：${RELEASE_TARGET_SHA}。"
+            gh release create "${RELEASE_TAG}" "${APK}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${RELEASE_TARGET_SHA}" \
+              --title "${RELEASE_TITLE}" \
+              --latest \
+              --notes "供水巡检初版正式发布。ARM64 APK。已现场确认国家天地图矢量/影像底图可正常加载，使用浏览器端天地图 Key；当前核心地图、定位、点位/管线查看与编辑、搜索/附近、附件与备份/导出等功能可用于初版实际使用。对应源码提交：${RELEASE_TARGET_SHA}。"
           fi
