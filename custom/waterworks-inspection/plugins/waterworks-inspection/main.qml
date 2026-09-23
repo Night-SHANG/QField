@@ -56,7 +56,10 @@ Item {
     "供水底图 天地图矢量",
     "供水底图 天地图矢量注记",
     "供水底图 天地图影像",
-    "供水底图 天地图影像注记"
+    "供水底图 天地图影像注记",
+    "天地图·陕西 标准地图",
+    "天地图·陕西 影像",
+    "天地图·陕西 影像注记"
   ]
 
   Settings {
@@ -412,20 +415,26 @@ Item {
     return effectiveTiandituToken().length > 0;
   }
 
-  function tiandituXyzSource(serviceName) {
+  function shaanxiVectorStyleUrl() {
     const token = effectiveTiandituToken();
     if (!token) {
       return "";
     }
+    return "https://shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/" +
+           "sxww2022Geo/" + encodeURIComponent(token) +
+           "/VectorTileServer/styles/default.json";
+  }
 
-    // Tianditu's DataServer endpoint maps directly to XYZ z/x/y semantics,
-    // avoiding WMTS query-template ambiguity inside QGIS' WMS provider URI.
-    const url = "https://t0.tianditu.gov.cn/DataServer" +
-                "?T=" + encodeURIComponent(serviceName) +
-                "&x={x}&y={y}&l={z}" +
-                "&tk=" + encodeURIComponent(token);
-    return "type=xyz&tilePixelRatio=1&url=" + encodeURIComponent(url) +
-           "&zmin=0&zmax=18&crs=EPSG3857";
+  function shaanxiImagerySource(serviceName) {
+    const token = effectiveTiandituToken();
+    if (!token) {
+      return "";
+    }
+    const tileUrl = "https://shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/" +
+                    serviceName + "/" + encodeURIComponent(token) +
+                    "/TileServer/tile/{z}/{y}/{x}";
+    return "type=xyz&tilePixelRatio=1&url=" + tileUrl +
+           "&zmin=0&zmax=18&crs=EPSG4490";
   }
 
   function initialBasemapMode() {
@@ -438,21 +447,20 @@ Item {
 
   function basemapModeLabel(mode) {
     if (mode === "tdt-vector") {
-      return "天地图矢量";
+      return "陕西天地图矢量";
     }
     if (mode === "tdt-imagery") {
-      return "天地图影像";
+      return "陕西天地图影像";
     }
     return "OSM";
   }
 
-  function replaceManagedBasemap(sources, names) {
-    const result = QfProjectUtils.replaceRasterBasemap(
+  function replaceManagedBasemap(definitions) {
+    const result = QfProjectUtils.replaceBasemapLayers(
       qgisProject,
       managedBasemapLayerNames,
-      sources,
-      names,
-      "wms"
+      definitions,
+      true
     );
     return result || {"success": false, "error": "底图切换失败"};
   }
@@ -470,23 +478,41 @@ Item {
       return false;
     }
 
-    let sources = [];
-    let names = [];
+    let definitions = [];
     if (requestedMode === "tdt-vector") {
-      // Annotation is inserted before the base so it remains above the base
-      // while both stay below all business layers.
-      sources = [tiandituXyzSource("cva_w"), tiandituXyzSource("vec_w")];
-      names = ["供水底图 天地图矢量注记", "供水底图 天地图矢量"];
+      definitions = [{
+        "kind": "vector-tile",
+        "name": "供水底图 陕西天地图矢量",
+        "styleUrl": shaanxiVectorStyleUrl()
+      }];
     } else if (requestedMode === "tdt-imagery") {
-      sources = [tiandituXyzSource("cia_w"), tiandituXyzSource("img_w")];
-      names = ["供水底图 天地图影像注记", "供水底图 天地图影像"];
+      // Add the annotation first so it stays visually above the imagery layer
+      // when both are appended to the bottom of the QGIS layer tree.
+      definitions = [
+        {
+          "kind": "raster",
+          "name": "供水底图 陕西天地图影像注记",
+          "source": shaanxiImagerySource("SxImgLabelMap"),
+          "provider": "wms"
+        },
+        {
+          "kind": "raster",
+          "name": "供水底图 陕西天地图影像",
+          "source": shaanxiImagerySource("SxImgMap"),
+          "provider": "wms"
+        }
+      ];
     } else {
       requestedMode = "osm";
-      sources = [fallbackBasemapSource];
-      names = ["供水底图 OSM"];
+      definitions = [{
+        "kind": "raster",
+        "name": "供水底图 OSM",
+        "source": fallbackBasemapSource,
+        "provider": "wms"
+      }];
     }
 
-    const result = replaceManagedBasemap(sources, names);
+    const result = replaceManagedBasemap(definitions);
     const ok = !!result.success;
     if (!ok) {
       if (showToast) {
