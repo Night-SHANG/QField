@@ -211,6 +211,11 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn('"img_w"', self.text)
         self.assertIn('"cia_w"', self.text)
         self.assertIn("EPSG3857", self.text)
+        self.assertIn('tiandituNationalTileUrl(serviceName, "{z}", "{x}", "{y}")', self.text)
+        self.assertIn('"&TILECOL=" + x + "&TILEROW=" + y + "&TILEMATRIX=" + z', self.text)
+        self.assertIn("function startTiandituConnectionTest()", self.text)
+        self.assertIn('text: plugin.tiandituProbeRunning ? "正在测试天地图…" : "测试天地图连接"', self.text)
+        self.assertIn("plugin.tiandituProbeSummary", self.text)
         self.assertNotIn("shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/", self.text)
 
     def test_tianditu_key_is_not_hardcoded_in_plugin(self) -> None:
