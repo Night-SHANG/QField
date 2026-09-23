@@ -464,14 +464,38 @@ Item {
            "&zmin=1&zmax=18&crs=EPSG3857";
   }
 
+  function sanitizeTiandituProbeDetail(value) {
+    let detail = String(value || "").replace(/\\s+/g, " ").trim();
+    const token = effectiveTiandituToken();
+    if (token.length > 0) {
+      detail = detail.split(token).join("[密钥已隐藏]");
+    }
+    if (detail.length > 240) {
+      detail = detail.substring(0, 240) + "…";
+    }
+    return detail;
+  }
+
   function tiandituProbeStatusText(serviceName) {
     const result = tiandituProbeResults[serviceName];
     if (!result) {
       return serviceName + "：未测试";
     }
+
     const statusText = result.status > 0 ? "HTTP " + result.status : "网络错误";
-    const detail = result.contentType ? " · " + result.contentType : "";
-    return serviceName + "：" + statusText + detail;
+    const metadata = [];
+    if (result.contentType) {
+      metadata.push(result.contentType);
+    }
+    if (result.server) {
+      metadata.push("Server " + result.server);
+    }
+    if (result.detail) {
+      metadata.push(result.detail);
+    }
+
+    return serviceName + "：" + statusText +
+           (metadata.length > 0 ? "\\n  " + metadata.join(" · ") : "");
   }
 
   function refreshTiandituProbeSummary() {
@@ -496,14 +520,16 @@ Item {
     }
   }
 
-  function recordTiandituProbeResult(generation, serviceName, status, contentType) {
+  function recordTiandituProbeResult(generation, serviceName, status, contentType, server, detail) {
     if (generation !== tiandituProbeGeneration) {
       return;
     }
     const nextResults = Object.assign({}, tiandituProbeResults);
     nextResults[serviceName] = {
       "status": Number(status || 0),
-      "contentType": String(contentType || "")
+      "contentType": String(contentType || ""),
+      "server": sanitizeTiandituProbeDetail(server),
+      "detail": sanitizeTiandituProbeDetail(detail)
     };
     tiandituProbeResults = nextResults;
     tiandituProbePending = Math.max(0, tiandituProbePending - 1);
@@ -535,29 +561,44 @@ Item {
       const serviceName = services[i];
       const request = new XMLHttpRequest();
       let finished = false;
-      const finish = function(status, contentType) {
+      const finish = function(status, contentType, server, detail) {
         if (finished) {
           return;
         }
         finished = true;
-        recordTiandituProbeResult(generation, serviceName, status, contentType);
+        recordTiandituProbeResult(generation, serviceName, status, contentType, server, detail);
       };
       request.open("GET", tiandituNationalTileUrl(serviceName, z, x, y));
-      request.responseType = "arraybuffer";
+      // Text mode lets a rejected request expose TianDiTu's diagnostic body.
+      // Successful image responses are identified by status/content type only.
+      request.responseType = "text";
       request.onreadystatechange = function() {
         if (request.readyState !== XMLHttpRequest.DONE) {
           return;
         }
+
         let contentType = "";
+        let server = "";
+        let detail = "";
         try {
           contentType = request.getResponseHeader("Content-Type") || "";
+          server = request.getResponseHeader("Server") || "";
         } catch (error) {
           contentType = "";
+          server = "";
         }
-        finish(request.status, contentType);
+
+        if (request.status !== 200) {
+          try {
+            detail = request.responseText || "";
+          } catch (error) {
+            detail = "";
+          }
+        }
+        finish(request.status, contentType, server, detail);
       };
       request.onerror = function() {
-        finish(0, "");
+        finish(0, "", "", "网络请求失败");
       };
       request.send();
     }
