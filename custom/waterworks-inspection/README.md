@@ -6,7 +6,7 @@
 
 - 上游：QField
 - 默认底图：QField 原生在线底图兜底，首次启动固定到榆林区域；定位可用后自动跳到当前位置
-- 可选增强底图：天地图·陕西（标准地图 + 影像），需要官方授权 Token
+- 可选增强底图：国家天地图（矢量 + 影像），使用开发者控制台应用密钥
 - 管网主数据：标准 GIS 数据，禁止将 GCJ-02 / BD-09 作为主数据坐标
 - 本地离线：GeoPackage / MBTiles / COG
 - 现场定位：QField GNSS；后续可接外部 GNSS / RTK
@@ -28,7 +28,7 @@ Android CI 使用仓库中的 `.github/workflows/waterworks-inspection-android.y
 
 1. 完成专用应用壳和内置插件。
 2. 建立点位、管线、巡检、附件的数据模型。
-3. 接入天地图·陕西在线底图，并准备现场区域离线地图包方案。
+3. 接入国家天地图在线底图，并准备现场区域离线地图包方案。
 4. 建立现场检修主流程：查找点位 → 导航/定位 → 查看历史照片 → 记录巡检 → 添加附件。
 5. 保持与 QField master 的可持续同步。
 
@@ -37,7 +37,7 @@ Android CI 使用仓库中的 `.github/workflows/waterworks-inspection-android.y
 
 普通使用只有一套地图界面，不再使用“巡”总入口，也不按管理员/维修等角色拆模式。
 
-1. 打开软件直接进入地图。首次安装自动建立供水项目；无天地图 Token 时继续使用在线底图并以榆林区域作为默认范围。
+1. 打开软件直接进入地图。首次安装自动建立供水项目；无天地图应用密钥时继续使用 OSM 备用底图并以榆林区域作为默认范围。
 2. 地图底部固定四个入口：**查找 / 附近 / 新增 / 更多**；地图右侧保留独立“定位”按钮。
 3. 右上角只有一个全局 **查看模式 / 编辑模式** 开关，状态会记住：
    - 查看模式：点位、管线只能查看、搜索、附近查询和导航；所有新增、修改、巡检、维修、添加附件写操作统一拦截。
@@ -65,7 +65,7 @@ python custom/waterworks-inspection/tools/create_geopackage.py ./waterworks-insp
 完整项目包需要在能够导入 PyQGIS 的 QGIS Python 环境运行：
 
 ```bash
-export TDT_SHAANXI_TOKEN='<你的授权 Token>'
+export TIANDITU_TK='<你的授权 Token>'
 python custom/waterworks-inspection/tools/build_project_bundle.py ./WaterworksInspection
 ```
 
@@ -82,8 +82,8 @@ python custom/waterworks-inspection/tools/build_project_bundle.py \
 
 ### Token 安全
 
-天地图 Token 不写入 Git 仓库，推荐通过 `TDT_SHAANXI_TOKEN` 环境变量传入。
-天地图·陕西官方服务需要授权 Token；供水版 APK 不依赖这个 Token 才能显示地图。没有 Token 时使用默认在线底图，避免出现空白地图；需要官方陕西影像/矢量服务时再配置 Token。
+天地图 Token 不写入 Git 仓库，推荐通过 `TIANDITU_TK` 环境变量传入。
+供水版使用国家天地图开发者控制台生成的应用密钥。应用需启用“瓦片服务”；IP 白名单留空时不限制来源。没有密钥时仅使用 OSM 备用底图。
 生成后的本地 QGIS/QField 项目如果包含 Token，应视为内部工作数据，不应直接提交到公开仓库。
 
 ## 开发期 CI 策略
@@ -116,8 +116,8 @@ python custom/waterworks-inspection/tools/build_project_bundle.py \
 - 天地图 tk 不提交到公开仓库，CI 通过 GitHub Actions Secret TIANDITU_TK 注入；也支持设备本地密码框配置。
 
 
-### 陕西天地图底图
+### 天地图底图
 
-运行时底图直接使用陕西省地理信息公共服务平台官方服务地址 `shaanxi.tianditu.gov.cn`。矢量底图使用 `sxww2022Geo/<token>/VectorTileServer/styles/default.json`；影像使用 `SxImgMap/<token>/TileServer/tile/{z}/{y}/{x}`，并叠加 `SxImgLabelMap` 注记。陕西本地资源按 CGCS2000 处理，影像图层声明为 EPSG:4490。
+运行时底图使用国家天地图开发者平台的瓦片服务，与 GitHub Actions Secret `TIANDITU_TK` 对应。矢量使用 `vec_w + cva_w`，影像使用 `img_w + cia_w`，通过官方 WMTS GetTile 地址加载，采用 Web Mercator（EPSG:3857）。
 
-OSM 仅作为备用底图。底图切换会移除旧 Raster/VectorTile 底图后再加入目标底图，不修改供水设施和管线业务数据。
+OSM 仅作为备用底图。底图切换会移除旧 Raster/VectorTile 底图后再加入目标底图，不修改供水设施和管线业务数据。不要把国家开发者平台的应用密钥用于陕西地方节点的独立服务地址。
