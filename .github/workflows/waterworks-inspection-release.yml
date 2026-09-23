@@ -21,8 +21,8 @@ jobs:
     env:
       SOURCE_RUN_ID: "35829747874"
       RELEASE_TARGET_SHA: "628c98bf74085dc7ed7d1f017d53dcd1c735ee9b"
-      RELEASE_TAG: "waterworks-inspection-test-628c98b"
-      RELEASE_TITLE: "供水巡检测试版 628c98b"
+      RELEASE_TAG: "waterworks-inspection-test-628c98b-browserkey"
+      RELEASE_TITLE: "供水巡检测试版 628c98b 浏览器端Key"
     steps:
       - name: Download successful Android artifact
         env:
