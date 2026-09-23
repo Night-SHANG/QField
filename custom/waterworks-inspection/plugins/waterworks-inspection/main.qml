@@ -45,6 +45,11 @@ Item {
   property string pendingDeleteObjectName: ""
   property int pendingDeleteAttachmentCount: 0
   property string attachmentCaptureMediaType: ""
+  property bool tiandituProbeRunning: false
+  property int tiandituProbeGeneration: 0
+  property int tiandituProbePending: 0
+  property var tiandituProbeResults: ({})
+  property string tiandituProbeSummary: "尚未测试"
 
   // Reliable no-token fallback map. The rectangle covers the Yulin area in
   // EPSG:3857 so a first launch never opens to an undefined/empty extent.
@@ -68,6 +73,22 @@ Item {
     "天地图·陕西 影像",
     "天地图·陕西 影像注记"
   ]
+
+  Timer {
+    id: tiandituProbeTimeout
+    interval: 15000
+    repeat: false
+    onTriggered: {
+      if (!plugin.tiandituProbeRunning) {
+        return;
+      }
+      plugin.tiandituProbeGeneration++;
+      plugin.tiandituProbeRunning = false;
+      plugin.tiandituProbePending = 0;
+      plugin.tiandituProbeSummary += "\n测试超时：请关闭代理/VPN后重试";
+      mainWindow.displayToast("天地图连接测试超时");
+    }
+  }
 
   Settings {
     id: workerAppSettings
@@ -422,22 +443,120 @@ Item {
     return effectiveTiandituToken().length > 0;
   }
 
-  function tiandituNationalXyzSource(serviceName) {
+  function tiandituNationalTileUrl(serviceName, z, x, y) {
     const token = effectiveTiandituToken();
     if (!token) {
       return "";
     }
 
     const layerName = String(serviceName || "").split("_")[0];
-    const tileUrl = "https://t0.tianditu.gov.cn/" + serviceName +
-                    "/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
-                    "&LAYER=" + layerName +
-                    "&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles" +
-                    "&TILECOL={x}&TILEROW={y}&TILEMATRIX={z}" +
-                    "&tk=" + encodeURIComponent(token);
+    return "https://t0.tianditu.gov.cn/" + serviceName +
+           "/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
+           "&LAYER=" + layerName +
+           "&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles" +
+           "&TILECOL=" + x + "&TILEROW=" + y + "&TILEMATRIX=" + z +
+           "&tk=" + encodeURIComponent(token);
+  }
+
+  function tiandituNationalXyzSource(serviceName) {
+    const tileUrl = tiandituNationalTileUrl(serviceName, "{z}", "{x}", "{y}");
+    if (!tileUrl) {
+      return "";
+    }
 
     return "type=xyz&tilePixelRatio=1&url=" + encodeURIComponent(tileUrl) +
            "&zmin=1&zmax=18&crs=EPSG3857";
+  }
+
+  function tiandituProbeStatusText(serviceName) {
+    const result = tiandituProbeResults[serviceName];
+    if (!result) {
+      return serviceName + "：未测试";
+    }
+    const statusText = result.status > 0 ? "HTTP " + result.status : "网络错误";
+    const detail = result.contentType ? " · " + result.contentType : "";
+    return serviceName + "：" + statusText + detail;
+  }
+
+  function refreshTiandituProbeSummary() {
+    const services = ["vec_w", "cva_w", "img_w", "cia_w"];
+    const labels = [];
+    let successCount = 0;
+    for (let i = 0; i < services.length; i++) {
+      const serviceName = services[i];
+      const result = tiandituProbeResults[serviceName];
+      if (result && result.status === 200 && String(result.contentType || "").indexOf("image/") === 0) {
+        successCount++;
+      }
+      labels.push(tiandituProbeStatusText(serviceName));
+    }
+    tiandituProbeSummary = labels.join("\n");
+    if (tiandituProbePending <= 0) {
+      tiandituProbeRunning = false;
+      tiandituProbeTimeout.stop();
+      mainWindow.displayToast(successCount === services.length
+                              ? "天地图连接测试通过"
+                              : "天地图连接测试完成：" + successCount + "/4 成功");
+    }
+  }
+
+  function recordTiandituProbeResult(generation, serviceName, status, contentType) {
+    if (generation !== tiandituProbeGeneration) {
+      return;
+    }
+    const nextResults = Object.assign({}, tiandituProbeResults);
+    nextResults[serviceName] = {
+      "status": Number(status || 0),
+      "contentType": String(contentType || "")
+    };
+    tiandituProbeResults = nextResults;
+    tiandituProbePending = Math.max(0, tiandituProbePending - 1);
+    refreshTiandituProbeSummary();
+  }
+
+  function startTiandituConnectionTest() {
+    if (!hasTiandituToken()) {
+      mainWindow.displayToast("天地图密钥不可用，无法测试");
+      return;
+    }
+
+    tiandituProbeGeneration++;
+    const generation = tiandituProbeGeneration;
+    tiandituProbeRunning = true;
+    tiandituProbePending = 4;
+    tiandituProbeResults = ({});
+    tiandituProbeSummary = "正在测试 vec_w / cva_w / img_w / cia_w…";
+    tiandituProbeTimeout.restart();
+
+    // Fixed Yulin-area Web-Mercator tile. Use the exact same WMTS URL builder
+    // as the basemap so this diagnoses the real phone-side request path.
+    const z = 10;
+    const x = 824;
+    const y = 393;
+    const services = ["vec_w", "cva_w", "img_w", "cia_w"];
+
+    for (let i = 0; i < services.length; i++) {
+      const serviceName = services[i];
+      const request = new XMLHttpRequest();
+      request.open("GET", tiandituNationalTileUrl(serviceName, z, x, y));
+      request.responseType = "arraybuffer";
+      request.onreadystatechange = function() {
+        if (request.readyState !== XMLHttpRequest.DONE) {
+          return;
+        }
+        let contentType = "";
+        try {
+          contentType = request.getResponseHeader("Content-Type") || "";
+        } catch (error) {
+          contentType = "";
+        }
+        recordTiandituProbeResult(generation, serviceName, request.status, contentType);
+      };
+      request.onerror = function() {
+        recordTiandituProbeResult(generation, serviceName, 0, "");
+      };
+      request.send();
+    }
   }
 
   function initialBasemapMode() {
@@ -3058,6 +3177,27 @@ Item {
                  : "天地图密钥：本机已配置（不显示明文）")
               : "天地图密钥：尚未配置"
         color: QfTheme.secondaryTextColor
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: plugin.tiandituProbeRunning ? "正在测试天地图…" : "测试天地图连接"
+        enabled: !plugin.tiandituProbeRunning && plugin.hasTiandituToken()
+        onClicked: plugin.startTiandituConnectionTest()
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: plugin.tiandituProbeSummary
+        color: QfTheme.secondaryTextColor
+        wrapMode: Text.WordWrap
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "建议关闭代理/VPN后测试；OSM 是否可用不代表天地图网络状态"
+        color: QfTheme.secondaryTextColor
+        wrapMode: Text.WordWrap
         wrapMode: Text.WordWrap
       }
 
