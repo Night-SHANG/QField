@@ -222,8 +222,18 @@ jobs:
             failures=$((failures + 1))
           }
 
-          grep -q 'Q_INVOKABLE static bool addMapLayerAtBottom' src/core/utils/qfprojectutils.h || {
-            echo "::error::Runtime basemap bottom-layer hook is missing"
+          grep -q 'Q_INVOKABLE static QVariantMap replaceRasterBasemap' src/core/utils/qfprojectutils.h || {
+            echo "::error::Atomic runtime basemap replacement hook is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 't0.tianditu.gov.cn/DataServer' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Tianditu DataServer XYZ endpoint is missing"
+            failures=$((failures + 1))
+          }
+
+          grep -q 'hasTiandituToken() ? "tdt-vector" : "osm"' custom/waterworks-inspection/plugins/waterworks-inspection/main.qml || {
+            echo "::error::Tianditu must be the first-run preferred basemap when configured"
             failures=$((failures + 1))
           }
 
