@@ -57,6 +57,10 @@ Item {
     "供水底图 天地图矢量注记",
     "供水底图 天地图影像",
     "供水底图 天地图影像注记",
+    "供水底图 天地图矢量",
+    "供水底图 天地图矢量注记",
+    "供水底图 天地图影像",
+    "供水底图 天地图影像注记",
     "供水底图 陕西天地图矢量",
     "供水底图 陕西天地图影像",
     "供水底图 陕西天地图影像注记",
@@ -418,26 +422,22 @@ Item {
     return effectiveTiandituToken().length > 0;
   }
 
-  function shaanxiVectorStyleUrl() {
+  function tiandituNationalXyzSource(serviceName) {
     const token = effectiveTiandituToken();
     if (!token) {
       return "";
     }
-    return "https://shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/" +
-           "sxww2022Geo/" + encodeURIComponent(token) +
-           "/VectorTileServer/styles/default.json";
-  }
 
-  function shaanxiImagerySource(serviceName) {
-    const token = effectiveTiandituToken();
-    if (!token) {
-      return "";
-    }
-    const tileUrl = "https://shaanxi.tianditu.gov.cn/ServiceSystem/Tile/rest/service/" +
-                    serviceName + "/" + encodeURIComponent(token) +
-                    "/TileServer/tile/{z}/{y}/{x}";
-    return "type=xyz&tilePixelRatio=1&url=" + tileUrl +
-           "&zmin=0&zmax=18&crs=EPSG4490";
+    const layerName = String(serviceName || "").split("_")[0];
+    const tileUrl = "https://t0.tianditu.gov.cn/" + serviceName +
+                    "/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0" +
+                    "&LAYER=" + layerName +
+                    "&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles" +
+                    "&TILECOL={x}&TILEROW={y}&TILEMATRIX={z}" +
+                    "&tk=" + encodeURIComponent(token);
+
+    return "type=xyz&tilePixelRatio=1&url=" + encodeURIComponent(tileUrl) +
+           "&zmin=1&zmax=18&crs=EPSG3857";
   }
 
   function initialBasemapMode() {
@@ -450,10 +450,10 @@ Item {
 
   function basemapModeLabel(mode) {
     if (mode === "tdt-vector") {
-      return "陕西天地图矢量";
+      return "天地图矢量";
     }
     if (mode === "tdt-imagery") {
-      return "陕西天地图影像";
+      return "天地图影像";
     }
     return "OSM";
   }
@@ -483,25 +483,32 @@ Item {
 
     let definitions = [];
     if (requestedMode === "tdt-vector") {
-      definitions = [{
-        "kind": "vector-tile",
-        "name": "供水底图 陕西天地图矢量",
-        "styleUrl": shaanxiVectorStyleUrl()
-      }];
-    } else if (requestedMode === "tdt-imagery") {
-      // Add the annotation first so it stays visually above the imagery layer
-      // when both are appended to the bottom of the QGIS layer tree.
       definitions = [
         {
           "kind": "raster",
-          "name": "供水底图 陕西天地图影像注记",
-          "source": shaanxiImagerySource("SxImgLabelMap"),
+          "name": "供水底图 天地图矢量注记",
+          "source": tiandituNationalXyzSource("cva_w"),
           "provider": "wms"
         },
         {
           "kind": "raster",
-          "name": "供水底图 陕西天地图影像",
-          "source": shaanxiImagerySource("SxImgMap"),
+          "name": "供水底图 天地图矢量",
+          "source": tiandituNationalXyzSource("vec_w"),
+          "provider": "wms"
+        }
+      ];
+    } else if (requestedMode === "tdt-imagery") {
+      definitions = [
+        {
+          "kind": "raster",
+          "name": "供水底图 天地图影像注记",
+          "source": tiandituNationalXyzSource("cia_w"),
+          "provider": "wms"
+        },
+        {
+          "kind": "raster",
+          "name": "供水底图 天地图影像",
+          "source": tiandituNationalXyzSource("img_w"),
           "provider": "wms"
         }
       ];
