@@ -137,18 +137,19 @@ QVariantMap QfProjectUtils::replaceRasterBasemap( QgsProject *project,
     project->removeMapLayer( layerId );
 
   QStringList addedLayerIds;
+  QList<QgsRasterLayer *> addedLayers;
   for ( QgsRasterLayer *layer : replacementLayers )
   {
     if ( !project->addMapLayer( layer, false ) )
     {
-      for ( const QString &addedLayerId : addedLayerIds )
-        project->removeMapLayer( addedLayerId );
-
       for ( QgsRasterLayer *pendingLayer : replacementLayers )
       {
-        if ( !addedLayerIds.contains( pendingLayer->id() ) )
+        if ( !addedLayers.contains( pendingLayer ) )
           delete pendingLayer;
       }
+
+      for ( const QString &addedLayerId : addedLayerIds )
+        project->removeMapLayer( addedLayerId );
 
       result.insert( QStringLiteral( "error" ), QStringLiteral( "无法把底图加入当前工程" ) );
       return result;
@@ -156,6 +157,7 @@ QVariantMap QfProjectUtils::replaceRasterBasemap( QgsProject *project,
 
     root->addLayer( layer );
     addedLayerIds.append( layer->id() );
+    addedLayers.append( layer );
   }
 
   result.insert( QStringLiteral( "success" ), true );
