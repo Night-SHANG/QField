@@ -252,7 +252,8 @@ jobs:
             failures=$((failures + 1))
           }
 
-          grep -q 'TIANDITU_TK: ${{ secrets.TIANDITU_TK }}' .github/workflows/waterworks-inspection-android.yml || {
+          grep -q 'TIANDITU_TK:' .github/workflows/waterworks-inspection-android.yml && \
+          grep -q 'secrets.TIANDITU_TK' .github/workflows/waterworks-inspection-android.yml || {
             echo "::error::Tianditu key must be injected from an Actions secret"
             failures=$((failures + 1))
           }
