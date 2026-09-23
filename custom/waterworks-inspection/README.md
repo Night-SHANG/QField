@@ -114,3 +114,10 @@ python custom/waterworks-inspection/tools/build_project_bundle.py \
 
 - 底图支持 OSM、天地图矢量和天地图影像切换；切换不会修改点位或管线坐标。
 - 天地图 tk 不提交到公开仓库，CI 通过 GitHub Actions Secret TIANDITU_TK 注入；也支持设备本地密码框配置。
+
+
+### 陕西天地图底图
+
+运行时底图直接使用陕西省地理信息公共服务平台官方服务地址 `shaanxi.tianditu.gov.cn`。矢量底图使用 `sxww2022Geo/<token>/VectorTileServer/styles/default.json`；影像使用 `SxImgMap/<token>/TileServer/tile/{z}/{y}/{x}`，并叠加 `SxImgLabelMap` 注记。陕西本地资源按 CGCS2000 处理，影像图层声明为 EPSG:4490。
+
+OSM 仅作为备用底图。底图切换会移除旧 Raster/VectorTile 底图后再加入目标底图，不修改供水设施和管线业务数据。
