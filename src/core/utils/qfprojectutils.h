@@ -51,6 +51,19 @@ class QfProjectUtils : public QObject
     Q_INVOKABLE static bool addMapLayerAtBottom( QgsProject *project, QgsMapLayer *layer );
 
     /**
+     * Atomically replaces managed basemap layers with validated raster layers.
+     *
+     * All replacement layers are constructed and validated before existing
+     * managed basemaps are removed. The returned map contains a success flag
+     * and an error string suitable for QML diagnostics.
+     */
+    Q_INVOKABLE static QVariantMap replaceRasterBasemap( QgsProject *project,
+                                                         const QStringList &managedLayerNames,
+                                                         const QStringList &sources,
+                                                         const QStringList &layerNames,
+                                                         const QString &provider = QStringLiteral( "wms" ) );
+
+    /**
      * Removes a map \a layer from a \a project layers registry.
      */
     Q_INVOKABLE static void removeMapLayer( QgsProject *project, QgsMapLayer *layer );
