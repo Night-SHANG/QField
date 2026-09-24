@@ -19,7 +19,6 @@ Item {
   property var overlayFeatureFormDrawer: iface.findItemByObjectName("overlayFeatureFormDrawer")
   property var featureForm: iface.findItemByObjectName("featureForm")
   property var navigation: iface.findItemByObjectName("navigation")
-  property var projectFolderButton: iface.findItemByObjectName("projectFolderButton")
   property var digitizingToolbar: iface.findItemByObjectName("digitizingToolbar")
 
   readonly property var assetTypeLayerNames: ["设施类型配置", "asset_types"]
@@ -44,6 +43,8 @@ Item {
   property string pendingDeleteObjectKind: ""
   property string pendingDeleteObjectName: ""
   property int pendingDeleteAttachmentCount: 0
+  property string pendingDeleteAttachmentId: ""
+  property string pendingDeleteAttachmentPath: ""
   property string attachmentCaptureMediaType: ""
   property bool tiandituProbeRunning: false
   property int tiandituProbeGeneration: 0
@@ -781,6 +782,9 @@ Item {
     if (attachmentDrawer && attachmentDrawer.opened) {
       attachmentDrawer.close();
     }
+    if (backupDrawer && backupDrawer.opened) {
+      backupDrawer.close();
+    }
   }
 
   function clearQueryHighlight() {
@@ -837,8 +841,14 @@ Item {
 
   function loadNearbyKind(objectKind) {
     queryObjectKind = objectKind;
-    const item = nearbyRadiusFilter.model[nearbyRadiusFilter.currentIndex];
-    loadNearbyObjects(item.value, objectKind);
+    loadNearbyObjects(nearbyRadiusMeters, objectKind);
+  }
+
+  function selectNearbyRadius(radiusMeters) {
+    nearbyRadiusMeters = Number(radiusMeters);
+    if (browserDrawer.opened && queryMode === "nearby") {
+      loadNearbyKind(queryObjectKind);
+    }
   }
 
   function startPipelineCapture() {
@@ -970,13 +980,50 @@ Item {
   }
 
   function openProjectBackup() {
-    if (!projectFolderButton) {
-      mainWindow.displayToast("当前版本无法打开项目导出");
+    if (!qgisProject || !qgisProject.fileName) {
+      mainWindow.displayToast("当前没有可备份的供水项目");
       return;
     }
 
     closeTransientPanels();
-    projectFolderButton.clicked();
+    backupDrawer.open();
+  }
+
+  function exportProjectBackup() {
+    if (!qgisProject || !qgisProject.fileName) {
+      mainWindow.displayToast("当前没有可备份的供水项目");
+      return;
+    }
+
+    const folder = qgisProject.homePath || QfFileUtils.absolutePath(qgisProject.fileName);
+    if (!folder) {
+      mainWindow.displayToast("无法确定项目目录");
+      return;
+    }
+
+    const stamp = Qt.formatDateTime(new Date(), "yyyyMMdd-HHmm");
+    platformUtilities.sendCompressedFolderTo(folder, "供水巡检备份-" + stamp);
+    mainWindow.displayToast("备份已生成，请选择保存位置");
+  }
+
+  function requestProjectRestore() {
+    if (!qgisProject || !qgisProject.fileName) {
+      mainWindow.displayToast("当前没有可恢复的供水项目");
+      return;
+    }
+    restoreProjectDialog.open();
+  }
+
+  function confirmProjectRestore() {
+    const projectPath = qgisProject && qgisProject.fileName ? qgisProject.fileName : "";
+    restoreProjectDialog.close();
+    backupDrawer.close();
+    if (!projectPath) {
+      mainWindow.displayToast("当前没有可恢复的供水项目");
+      return;
+    }
+
+    platformUtilities.updateProjectFromArchive(projectPath);
   }
 
   function copyCurrentPosition() {
@@ -1672,6 +1719,56 @@ Item {
     attachmentDrawer.open();
   }
 
+  function requestDeleteAttachment(attachmentId, relativePath) {
+    if (!editAllowed("删除附件")) {
+      return;
+    }
+    if (!attachmentId) {
+      mainWindow.displayToast("无法确定要删除的附件记录");
+      return;
+    }
+
+    pendingDeleteAttachmentId = attachmentId;
+    pendingDeleteAttachmentPath = String(relativePath || "");
+    deleteAttachmentDialog.open();
+  }
+
+  function confirmDeleteAttachment() {
+    const layer = attachmentLayer();
+    const attachmentId = pendingDeleteAttachmentId;
+    const relativePath = pendingDeleteAttachmentPath;
+    if (!layer || !attachmentId) {
+      deleteAttachmentDialog.close();
+      return;
+    }
+
+    const deleted = QfLayerUtils.deleteFeaturesByExpression(
+      qgisProject,
+      layer,
+      "\"id\" = '" + escapeExpressionString(attachmentId) + "'"
+    );
+    if (deleted !== 1) {
+      mainWindow.displayToast("附件删除失败，记录仍保留");
+      deleteAttachmentDialog.close();
+      return;
+    }
+
+    let fileDeleteFailed = false;
+    const absolutePath = attachmentAbsolutePath(relativePath);
+    if (absolutePath && QfFileUtils.fileExists(absolutePath)) {
+      fileDeleteFailed = !platformUtilities.rmFile(absolutePath);
+    }
+
+    QfLayerUtils.triggerLayerRepaint(layer);
+    loadAttachments(attachmentObjectId, attachmentObjectKind);
+    deleteAttachmentDialog.close();
+    pendingDeleteAttachmentId = "";
+    pendingDeleteAttachmentPath = "";
+    mainWindow.displayToast(fileDeleteFailed
+                            ? "附件记录已删除，但原文件删除失败"
+                            : "附件已删除");
+  }
+
   function configureAttachmentCaptureMode(mediaType) {
     const layer = attachmentLayer();
     if (!layer) {
@@ -2184,6 +2281,53 @@ Item {
           Layout.fillWidth: true
           text: "删除"
           onClicked: plugin.confirmDeleteBusinessObject()
+        }
+      }
+    }
+  }
+
+  QfDialog {
+    id: deleteAttachmentDialog
+    parent: mainWindow.contentItem
+    title: "删除附件"
+    modal: true
+    standardButtons: Dialog.NoButton
+    width: Math.min(mainWindow.width - 40, 460)
+    x: (mainWindow.width - width) / 2
+    y: (mainWindow.height - height) / 2
+
+    ColumnLayout {
+      width: parent.width
+      spacing: 12
+
+      Label {
+        Layout.fillWidth: true
+        text: "确定删除这个附件吗？"
+        font.bold: true
+        wrapMode: Text.WordWrap
+        color: QfTheme.mainTextColor
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "将同时删除附件记录和对应文件。即使文件已经不存在，也会清理残留记录。此操作无法恢复。"
+        wrapMode: Text.WordWrap
+        color: QfTheme.secondaryTextColor
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Button {
+          Layout.fillWidth: true
+          text: "取消"
+          onClicked: deleteAttachmentDialog.close()
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "删除"
+          onClicked: plugin.confirmDeleteAttachment()
         }
       }
     }
@@ -2824,9 +2968,11 @@ Item {
           required property string relativePath
           required property string caption
           required property string capturedAt
+          readonly property bool filePresent: relativePath.length > 0 &&
+                                              QfFileUtils.fileExists(plugin.attachmentAbsolutePath(relativePath))
 
           width: attachmentListView.width
-          height: mediaType === "photo" ? 150 : attachmentInfoColumn.implicitHeight + 24
+          height: mediaType === "photo" ? 170 : attachmentInfoColumn.implicitHeight + 24
           radius: 8
           color: QfTheme.groupBoxBackgroundColor
           border.color: QfTheme.controlBorderColor
@@ -2842,7 +2988,7 @@ Item {
               visible: mediaType === "photo"
               Layout.preferredWidth: visible ? 120 : 0
               Layout.fillHeight: visible
-              source: visible ? plugin.attachmentUrl(relativePath) : ""
+              source: visible && filePresent ? plugin.attachmentUrl(relativePath) : ""
               fillMode: Image.PreserveAspectCrop
               asynchronous: true
               cache: false
@@ -2863,16 +3009,30 @@ Item {
 
               Label {
                 Layout.fillWidth: true
-                text: capturedAt.length > 0 ? capturedAt : relativePath
+                text: filePresent
+                      ? (capturedAt.length > 0 ? capturedAt : relativePath)
+                      : "文件已不存在，可删除此附件记录"
                 color: QfTheme.secondaryTextColor
                 elide: Text.ElideRight
               }
 
-              Button {
+              RowLayout {
                 Layout.fillWidth: true
-                text: mediaType === "photo" ? "查看原图" : "打开" + plugin.attachmentTypeLabel(mediaType)
-                enabled: relativePath.length > 0
-                onClicked: Qt.openUrlExternally(plugin.attachmentUrl(relativePath))
+                spacing: 6
+
+                Button {
+                  Layout.fillWidth: true
+                  text: mediaType === "photo" ? "查看原图" : "打开" + plugin.attachmentTypeLabel(mediaType)
+                  enabled: filePresent
+                  onClicked: Qt.openUrlExternally(plugin.attachmentUrl(relativePath))
+                }
+
+                Button {
+                  Layout.fillWidth: true
+                  visible: workerAppSettings.editEnabled
+                  text: "删除"
+                  onClicked: plugin.requestDeleteAttachment(attachmentId, relativePath)
+                }
               }
             }
           }
@@ -2959,34 +3119,60 @@ Item {
         }
       }
 
-      RowLayout {
+      ColumnLayout {
         Layout.fillWidth: true
         visible: plugin.queryMode === "nearby"
-        spacing: 8
+        spacing: 4
 
-        ComboBox {
-          id: nearbyRadiusFilter
+        Label {
           Layout.fillWidth: true
-          model: [
-            {"text":"100 米","value":100},
-            {"text":"300 米","value":300},
-            {"text":"500 米","value":500},
-            {"text":"1 公里","value":1000},
-            {"text":"2 公里","value":2000}
-          ]
-          textRole: "text"
-          currentIndex: 2
-          onCurrentIndexChanged: {
-            if (browserDrawer.opened && plugin.queryMode === "nearby") {
-              plugin.loadNearbyKind(plugin.queryObjectKind);
-            }
-          }
+          text: "附近范围"
+          color: QfTheme.secondaryTextColor
         }
 
-        Button {
-          text: searchBusy ? "查询中" : "刷新"
-          enabled: !searchBusy
-          onClicked: plugin.loadNearbyKind(plugin.queryObjectKind)
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: 4
+
+          Button {
+            Layout.fillWidth: true
+            text: "100米"
+            flat: plugin.nearbyRadiusMeters !== 100
+            font.bold: plugin.nearbyRadiusMeters === 100
+            onClicked: plugin.selectNearbyRadius(100)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "300米"
+            flat: plugin.nearbyRadiusMeters !== 300
+            font.bold: plugin.nearbyRadiusMeters === 300
+            onClicked: plugin.selectNearbyRadius(300)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "500米"
+            flat: plugin.nearbyRadiusMeters !== 500
+            font.bold: plugin.nearbyRadiusMeters === 500
+            onClicked: plugin.selectNearbyRadius(500)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "1公里"
+            flat: plugin.nearbyRadiusMeters !== 1000
+            font.bold: plugin.nearbyRadiusMeters === 1000
+            onClicked: plugin.selectNearbyRadius(1000)
+          }
+
+          Button {
+            Layout.fillWidth: true
+            text: "2公里"
+            flat: plugin.nearbyRadiusMeters !== 2000
+            font.bold: plugin.nearbyRadiusMeters === 2000
+            onClicked: plugin.selectNearbyRadius(2000)
+          }
         }
       }
 
@@ -3301,6 +3487,116 @@ Item {
         Layout.fillWidth: true
         text: "打开其他供水数据"
         onClicked: plugin.chooseWaterworksProject()
+      }
+    }
+  }
+
+  Drawer {
+    id: backupDrawer
+    objectName: "waterworksBackupDrawer"
+    parent: mainWindow.contentItem
+    z: 112
+    edge: Qt.BottomEdge
+    modal: false
+    interactive: true
+    width: mainWindow.width
+    height: Math.min(330 + mainWindow.sceneBottomMargin, mainWindow.height * 0.48)
+
+    background: Rectangle {
+      color: QfTheme.mainBackgroundColor
+      border.color: QfTheme.controlBorderColor
+    }
+
+    ColumnLayout {
+      anchors {
+        fill: parent
+        leftMargin: mainWindow.sceneLeftMargin + 16
+        rightMargin: mainWindow.sceneRightMargin + 16
+        topMargin: 12
+        bottomMargin: mainWindow.sceneBottomMargin + 12
+      }
+      spacing: 10
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Label {
+          Layout.fillWidth: true
+          text: "备份与恢复"
+          font.bold: true
+          font.pixelSize: 18
+          color: QfTheme.mainTextColor
+        }
+
+        Button {
+          text: "关闭"
+          onClicked: backupDrawer.close()
+        }
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "备份会把当前供水数据和照片/附件一起打包成一个 ZIP 文件。"
+        wrapMode: Text.WordWrap
+        color: QfTheme.secondaryTextColor
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "导出备份"
+        onClicked: plugin.exportProjectBackup()
+      }
+
+      Button {
+        Layout.fillWidth: true
+        text: "从备份恢复"
+        onClicked: plugin.requestProjectRestore()
+      }
+
+      Label {
+        Layout.fillWidth: true
+        text: "恢复会用选中的备份覆盖当前项目，请先确认当前数据已经备份。"
+        wrapMode: Text.WordWrap
+        color: QfTheme.secondaryTextColor
+      }
+    }
+  }
+
+  QfDialog {
+    id: restoreProjectDialog
+    parent: mainWindow.contentItem
+    title: "从备份恢复"
+    modal: true
+    standardButtons: Dialog.NoButton
+    width: Math.min(mainWindow.width - 40, 460)
+    x: (mainWindow.width - width) / 2
+    y: (mainWindow.height - height) / 2
+
+    ColumnLayout {
+      width: parent.width
+      spacing: 12
+
+      Label {
+        Layout.fillWidth: true
+        text: "恢复备份会覆盖当前供水项目的数据和附件。确定继续吗？"
+        wrapMode: Text.WordWrap
+        color: QfTheme.mainTextColor
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Button {
+          Layout.fillWidth: true
+          text: "取消"
+          onClicked: restoreProjectDialog.close()
+        }
+
+        Button {
+          Layout.fillWidth: true
+          text: "选择备份文件"
+          onClicked: plugin.confirmProjectRestore()
+        }
       }
     }
   }
