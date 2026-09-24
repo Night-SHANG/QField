@@ -201,6 +201,8 @@ class QfLayerUtils : public QObject
      * in the edit buffer for the caller to commit.
      */
     Q_INVOKABLE static bool addFeature( QgsVectorLayer *layer, QgsFeature feature );
+    //! Updates a feature and commits immediately when this helper opened the edit session.
+    Q_INVOKABLE static bool updateFeature( QgsVectorLayer *layer, QgsFeature feature );
 
     /**
      * Returns the QVariant typeName of a \a field.
