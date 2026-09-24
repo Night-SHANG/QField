@@ -62,11 +62,17 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("model: assetTypeOptions", self.text)
         self.assertNotIn('case "valve_well"', self.text)
 
-    def test_backup_entry_reuses_qfield_project_folder(self) -> None:
-        self.assertIn('iface.findItemByObjectName("projectFolderButton")', self.text)
+    def test_backup_flow_is_simplified_for_field_use(self) -> None:
         self.assertIn("function openProjectBackup()", self.text)
-        self.assertIn("projectFolderButton.clicked()", self.text)
-        self.assertIn('text: "备份 / 导出"', self.text)
+        self.assertIn("function exportProjectBackup()", self.text)
+        self.assertIn("function requestProjectRestore()", self.text)
+        self.assertIn("function confirmProjectRestore()", self.text)
+        self.assertIn("platformUtilities.sendCompressedFolderTo", self.text)
+        self.assertIn("platformUtilities.updateProjectFromArchive", self.text)
+        self.assertIn('objectName: "waterworksBackupDrawer"', self.text)
+        self.assertIn('text: "导出备份"', self.text)
+        self.assertIn('text: "从备份恢复"', self.text)
+        self.assertNotIn("projectFolderButton.clicked()", self.text)
 
     def test_single_simplified_field_interface_hides_professional_controls(self) -> None:
         self.assertIn("function simplifyInterface()", self.text)
@@ -310,6 +316,22 @@ class PluginContractTests(unittest.TestCase):
             self.text.count("overlayFeatureFormDrawer.featureModel.currentLayer = layer"),
             3,
         )
+
+    def test_nearby_radius_uses_direct_presets_without_popup_combobox(self) -> None:
+        self.assertIn("function selectNearbyRadius(radiusMeters)", self.text)
+        self.assertIn("loadNearbyObjects(nearbyRadiusMeters, objectKind)", self.text)
+        for label in ("100米", "300米", "500米", "1公里", "2公里"):
+            self.assertIn(f'text: "{label}"', self.text)
+        self.assertNotIn("id: nearbyRadiusFilter", self.text)
+
+    def test_attachment_records_can_be_deleted_with_or_without_physical_file(self) -> None:
+        self.assertIn("function requestDeleteAttachment(attachmentId, relativePath)", self.text)
+        self.assertIn("function confirmDeleteAttachment()", self.text)
+        self.assertIn('id: deleteAttachmentDialog', self.text)
+        self.assertIn("QfLayerUtils.deleteFeaturesByExpression", self.text)
+        self.assertIn("QfFileUtils.fileExists(absolutePath)", self.text)
+        self.assertIn("platformUtilities.rmFile(absolutePath)", self.text)
+        self.assertIn('text: "文件已不存在，可删除此附件记录"', self.text)
 
     def test_attachment_browser_surfaces_existing_media_and_capture_types(self) -> None:
         self.assertIn('objectName: "waterworksAttachmentDrawer"', self.text)
