@@ -83,6 +83,8 @@ class QFIELD_CORE_EXPORT QfFileUtils : public QObject
     * \return The file content as a QByteArray
     */
     Q_INVOKABLE static QByteArray readFileContent( const QString &filePath );
+    //! Reads a UTF-8 text file from within the current project directory.
+    Q_INVOKABLE static QString readTextFile( const QString &filePath );
 
     /**
     * Writes content to a file.
@@ -97,6 +99,8 @@ class QFIELD_CORE_EXPORT QfFileUtils : public QObject
     * - Use QfPlatformUtilities.applicationDirectory() to get a safe write location.
     */
     Q_INVOKABLE static bool writeFileContent( const QString &filePath, const QByteArray &content );
+    //! Writes UTF-8 text to a file within the current project directory.
+    Q_INVOKABLE static bool writeTextFile( const QString &filePath, const QString &content );
 
     /**
      * Copies one file from a sourcePath to a destinationPath.
