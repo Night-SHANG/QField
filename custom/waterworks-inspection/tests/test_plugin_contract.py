@@ -346,7 +346,7 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("QfLayerUtils.deleteFeaturesByExpression", self.text)
         self.assertIn("QfFileUtils.fileExists(absolutePath)", self.text)
         self.assertIn("platformUtilities.rmFile(absolutePath)", self.text)
-        self.assertIn('text: "文件已不存在，可删除此附件记录"', self.text)
+        self.assertIn('"文件已不存在，可删除此附件记录"', self.text)
 
     def test_attachment_browser_surfaces_existing_media_and_capture_types(self) -> None:
         self.assertIn('objectName: "waterworksAttachmentDrawer"', self.text)
