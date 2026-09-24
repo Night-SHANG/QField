@@ -68,6 +68,7 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("function requestProjectRestore()", self.text)
         self.assertIn("function confirmProjectRestore()", self.text)
         self.assertIn("platformUtilities.sendCompressedFolderTo", self.text)
+        self.assertIn('const folder = qgisProject.homePath || QfFileUtils.absolutePath(qgisProject.fileName)', self.text)
         self.assertIn("platformUtilities.updateProjectFromArchive", self.text)
         self.assertIn('objectName: "waterworksBackupDrawer"', self.text)
         self.assertIn('text: "导出备份"', self.text)
@@ -323,6 +324,20 @@ class PluginContractTests(unittest.TestCase):
         for label in ("100米", "300米", "500米", "1公里", "2公里"):
             self.assertIn(f'text: "{label}"', self.text)
         self.assertNotIn("id: nearbyRadiusFilter", self.text)
+
+    def test_in_app_text_notes_reuse_document_storage_compatibly(self) -> None:
+        self.assertIn("function isTextNote(mediaType, relativePath)", self.text)
+        self.assertIn("function createTextNote()", self.text)
+        self.assertIn("function openTextNote(attachmentId, relativePath)", self.text)
+        self.assertIn("function saveTextNote()", self.text)
+        self.assertIn('text: "文字记录"', self.text)
+        self.assertIn('id: textNoteDialog', self.text)
+        self.assertIn('relativePath = "attachments/documents/"', self.text)
+        self.assertIn('feature.setAttribute("media_type", "document")', self.text)
+        self.assertIn("QfFileUtils.writeTextFile", self.text)
+        self.assertIn("QfFileUtils.readTextFile", self.text)
+        self.assertIn("QfLayerUtils.updateFeature", self.text)
+        self.assertIn('return "文档";', self.text)
 
     def test_attachment_records_can_be_deleted_with_or_without_physical_file(self) -> None:
         self.assertIn("function requestDeleteAttachment(attachmentId, relativePath)", self.text)
