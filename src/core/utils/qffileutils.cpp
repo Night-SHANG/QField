@@ -656,6 +656,11 @@ QByteArray QfFileUtils::readFileContent( const QString &filePath )
   return content;
 }
 
+QString QfFileUtils::readTextFile( const QString &filePath )
+{
+  return QString::fromUtf8( readFileContent( filePath ) );
+}
+
 bool QfFileUtils::writeFileContent( const QString &filePath, const QByteArray &content )
 {
   if ( !isWithinProjectDirectory( filePath ) )
@@ -728,6 +733,11 @@ bool QfFileUtils::copyFile( const QString &sourcePath, const QString &destinatio
   return QFile::copy( sourcePath, destinationPath );
 }
 
+
+bool QfFileUtils::writeTextFile( const QString &filePath, const QString &content )
+{
+  return writeFileContent( filePath, content.toUtf8() );
+}
 
 QVariantMap QfFileUtils::getFileInfo( const QString &filePath, bool fetchContent )
 {
