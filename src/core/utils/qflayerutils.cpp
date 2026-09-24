@@ -531,6 +531,41 @@ bool QfLayerUtils::addFeature( QgsVectorLayer *layer, QgsFeature feature )
   return true;
 }
 
+bool QfLayerUtils::updateFeature( QgsVectorLayer *layer, QgsFeature feature )
+{
+  if ( !layer || !feature.isValid() )
+  {
+    return false;
+  }
+
+  const bool wasEditing = layer->editBuffer();
+  if ( !wasEditing && !layer->startEditing() )
+  {
+    QgsMessageLog::logMessage( tr( "Cannot start editing" ), "QField", Qgis::Warning );
+    return false;
+  }
+
+  if ( !layer->updateFeature( feature ) )
+  {
+    QgsMessageLog::logMessage( tr( "Cannot update feature in layer \"%1\"" ).arg( layer->name() ), "QField", Qgis::Warning );
+    if ( !wasEditing )
+    {
+      layer->rollBack();
+    }
+    return false;
+  }
+
+  if ( !wasEditing && !layer->commitChanges() )
+  {
+    const QString msgs = layer->commitErrors().join( QStringLiteral( "\n" ) );
+    QgsMessageLog::logMessage( tr( "Cannot commit updated feature in layer \"%1\". Reason:\n%2" ).arg( layer->name(), msgs ), "QField", Qgis::Warning );
+    layer->rollBack();
+    return false;
+  }
+
+  return true;
+}
+
 bool QfLayerUtils::deleteFeature( QgsProject *project, QgsVectorLayer *layer, const QgsFeatureId fid, bool flushBuffer )
 {
   if ( !project )
