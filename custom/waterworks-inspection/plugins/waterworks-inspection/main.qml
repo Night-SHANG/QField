@@ -45,6 +45,9 @@ Item {
   property int pendingDeleteAttachmentCount: 0
   property string pendingDeleteAttachmentId: ""
   property string pendingDeleteAttachmentPath: ""
+  property string textNoteAttachmentId: ""
+  property string textNoteRelativePath: ""
+  property bool textNoteIsNew: false
   property string attachmentCaptureMediaType: ""
   property bool tiandituProbeRunning: false
   property int tiandituProbeGeneration: 0
@@ -1670,7 +1673,15 @@ Item {
     return path ? QfUrlUtils.fromString(path) : "";
   }
 
-  function attachmentTypeLabel(mediaType) {
+  function isTextNote(mediaType, relativePath) {
+    return String(mediaType || "") === "document" &&
+           String(relativePath || "").toLowerCase().endsWith(".txt");
+  }
+
+  function attachmentTypeLabel(mediaType, relativePath) {
+    if (isTextNote(mediaType, relativePath)) {
+      return "文字记录";
+    }
     switch (String(mediaType || "")) {
     case "video":
       return "视频";
@@ -1717,6 +1728,144 @@ Item {
     attachmentObjectKind = objectKind;
     loadAttachments(objectId, objectKind);
     attachmentDrawer.open();
+  }
+
+  function attachmentFeatureById(attachmentId) {
+    const layer = attachmentLayer();
+    if (!layer || !attachmentId) {
+      return null;
+    }
+    const iterator = QfLayerUtils.createFeatureIteratorFromExpression(
+      layer,
+      "\"id\" = '" + escapeExpressionString(attachmentId) + "'"
+    );
+    if (!iterator.hasNext()) {
+      iterator.close();
+      return null;
+    }
+    const feature = iterator.next();
+    iterator.close();
+    return feature;
+  }
+
+  function defaultTextNoteTitle(body) {
+    const compact = String(body || "").replace(/\s+/g, " ").trim();
+    if (!compact) {
+      return "文字记录";
+    }
+    return compact.length > 24 ? compact.substring(0, 24) + "…" : compact;
+  }
+
+  function createTextNote() {
+    if (!editAllowed("添加文字记录")) {
+      return;
+    }
+    if (!attachmentObjectId) {
+      mainWindow.displayToast("无法确定文字记录所属对象");
+      return;
+    }
+
+    textNoteAttachmentId = "";
+    textNoteRelativePath = "";
+    textNoteIsNew = true;
+    textNoteTitleField.text = "";
+    textNoteBodyField.text = "";
+    textNoteDialog.open();
+  }
+
+  function openTextNote(attachmentId, relativePath) {
+    const feature = attachmentFeatureById(attachmentId);
+    const absolutePath = attachmentAbsolutePath(relativePath);
+    if (!feature || !absolutePath || !QfFileUtils.fileExists(absolutePath)) {
+      mainWindow.displayToast("文字记录文件不存在");
+      return;
+    }
+
+    textNoteAttachmentId = attachmentId;
+    textNoteRelativePath = relativePath;
+    textNoteIsNew = false;
+    const caption = feature.attribute("caption");
+    textNoteTitleField.text = caption === null || caption === undefined ? "" : String(caption);
+    textNoteBodyField.text = QfFileUtils.readTextFile(absolutePath);
+    textNoteDialog.open();
+  }
+
+  function saveTextNote() {
+    if (!workerAppSettings.editEnabled) {
+      return;
+    }
+
+    const body = String(textNoteBodyField.text || "").trim();
+    if (!body) {
+      mainWindow.displayToast("文字记录内容不能为空");
+      return;
+    }
+
+    const layer = attachmentLayer();
+    if (!layer || !attachmentObjectId) {
+      mainWindow.displayToast("文字记录保存失败：附件图层不可用");
+      return;
+    }
+
+    let title = String(textNoteTitleField.text || "").trim();
+    if (!title) {
+      title = defaultTextNoteTitle(body);
+    }
+
+    if (textNoteIsNew) {
+      const attachmentId = newObjectId();
+      if (!attachmentId) {
+        mainWindow.displayToast("文字记录保存失败：无法生成编号");
+        return;
+      }
+
+      const relativePath = "attachments/documents/" + attachmentObjectId + "/" + attachmentId + ".txt";
+      const absolutePath = attachmentAbsolutePath(relativePath);
+      if (!QfFileUtils.writeTextFile(absolutePath, body + "\n")) {
+        mainWindow.displayToast("文字记录保存失败：无法写入文件");
+        return;
+      }
+
+      const feature = QfFeatureUtils.createFeature(layer);
+      feature.setAttribute("id", attachmentId);
+      setParentReference(feature, attachmentObjectId, attachmentObjectKind);
+      feature.setAttribute("inspection_id", null);
+      feature.setAttribute("repair_id", null);
+      feature.setAttribute("media_type", "document");
+      feature.setAttribute("photo_path", null);
+      feature.setAttribute("video_path", null);
+      feature.setAttribute("audio_path", null);
+      feature.setAttribute("document_path", relativePath);
+      feature.setAttribute("caption", title);
+
+      if (!QfLayerUtils.addFeature(layer, feature)) {
+        platformUtilities.rmFile(absolutePath);
+        mainWindow.displayToast("文字记录保存失败：无法写入附件记录");
+        return;
+      }
+    } else {
+      const feature = attachmentFeatureById(textNoteAttachmentId);
+      const absolutePath = attachmentAbsolutePath(textNoteRelativePath);
+      if (!feature || !absolutePath) {
+        mainWindow.displayToast("文字记录保存失败：记录不存在");
+        return;
+      }
+      if (!QfFileUtils.writeTextFile(absolutePath, body + "\n")) {
+        mainWindow.displayToast("文字记录保存失败：无法写入文件");
+        return;
+      }
+
+      feature.setAttribute("caption", title);
+      if (!QfLayerUtils.updateFeature(layer, feature)) {
+        mainWindow.displayToast("正文已保存，但标题更新失败");
+        return;
+      }
+    }
+
+    QfLayerUtils.triggerLayerRepaint(layer);
+    loadAttachments(attachmentObjectId, attachmentObjectKind);
+    textNoteDialog.close();
+    mainWindow.displayToast("文字记录已保存");
   }
 
   function requestDeleteAttachment(attachmentId, relativePath) {
@@ -2055,7 +2204,7 @@ Item {
     platformUtilities.rmFile(localSource);
     QfLayerUtils.triggerLayerRepaint(layer);
     loadAttachments(objectId, objectKind);
-    mainWindow.displayToast(attachmentTypeLabel(mediaType) + "已添加");
+    mainWindow.displayToast(attachmentTypeLabel(mediaType, relativePath) + "已添加");
     return true;
   }
 
@@ -2281,6 +2430,74 @@ Item {
           Layout.fillWidth: true
           text: "删除"
           onClicked: plugin.confirmDeleteBusinessObject()
+        }
+      }
+    }
+  }
+
+  QfDialog {
+    id: textNoteDialog
+    parent: mainWindow.contentItem
+    title: textNoteIsNew ? "新建文字记录" : "文字记录"
+    modal: true
+    standardButtons: Dialog.NoButton
+    width: Math.min(mainWindow.width - 28, 560)
+    height: Math.min(mainWindow.height - 48, 680)
+    x: (mainWindow.width - width) / 2
+    y: (mainWindow.height - height) / 2
+
+    onClosed: {
+      textNoteAttachmentId = "";
+      textNoteRelativePath = "";
+      textNoteIsNew = false;
+      textNoteTitleField.text = "";
+      textNoteBodyField.text = "";
+    }
+
+    ColumnLayout {
+      anchors.fill: parent
+      spacing: 8
+
+      Label {
+        Layout.fillWidth: true
+        text: workerAppSettings.editEnabled
+              ? "可直接在软件内记录现场情况、说明、备忘等。"
+              : "当前为查看模式。"
+        color: QfTheme.secondaryTextColor
+        wrapMode: Text.WordWrap
+      }
+
+      TextField {
+        id: textNoteTitleField
+        Layout.fillWidth: true
+        placeholderText: "标题（可选，不填会自动取正文开头）"
+        readOnly: !workerAppSettings.editEnabled
+      }
+
+      TextArea {
+        id: textNoteBodyField
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        placeholderText: "输入文字记录…"
+        wrapMode: TextEdit.Wrap
+        readOnly: !workerAppSettings.editEnabled
+        selectByMouse: true
+      }
+
+      RowLayout {
+        Layout.fillWidth: true
+
+        Button {
+          Layout.fillWidth: true
+          text: workerAppSettings.editEnabled ? "取消" : "关闭"
+          onClicked: textNoteDialog.close()
+        }
+
+        Button {
+          Layout.fillWidth: true
+          visible: workerAppSettings.editEnabled
+          text: "保存"
+          onClicked: plugin.saveTextNote()
         }
       }
     }
@@ -2940,8 +3157,8 @@ Item {
 
         Button {
           Layout.fillWidth: true
-          text: "文档"
-          onClicked: plugin.createAttachment(attachmentObjectId, attachmentObjectKind, "document")
+          text: "文字记录"
+          onClicked: plugin.createTextNote()
         }
       }
 
@@ -2968,6 +3185,7 @@ Item {
           required property string relativePath
           required property string caption
           required property string capturedAt
+          readonly property bool textNote: plugin.isTextNote(mediaType, relativePath)
           readonly property bool filePresent: relativePath.length > 0 &&
                                               QfFileUtils.fileExists(plugin.attachmentAbsolutePath(relativePath))
 
@@ -3001,7 +3219,7 @@ Item {
 
               Label {
                 Layout.fillWidth: true
-                text: plugin.attachmentTypeLabel(mediaType) + (caption.length > 0 ? " · " + caption : "")
+                text: plugin.attachmentTypeLabel(mediaType, relativePath) + (caption.length > 0 ? " · " + caption : "")
                 font.bold: true
                 color: QfTheme.mainTextColor
                 elide: Text.ElideRight
@@ -3022,9 +3240,17 @@ Item {
 
                 Button {
                   Layout.fillWidth: true
-                  text: mediaType === "photo" ? "查看原图" : "打开" + plugin.attachmentTypeLabel(mediaType)
+                  text: textNote
+                        ? (workerAppSettings.editEnabled ? "查看 / 编辑" : "查看记录")
+                        : (mediaType === "photo" ? "查看原图" : "打开" + plugin.attachmentTypeLabel(mediaType, relativePath))
                   enabled: filePresent
-                  onClicked: Qt.openUrlExternally(plugin.attachmentUrl(relativePath))
+                  onClicked: {
+                    if (textNote) {
+                      plugin.openTextNote(attachmentId, relativePath);
+                    } else {
+                      Qt.openUrlExternally(plugin.attachmentUrl(relativePath));
+                    }
+                  }
                 }
 
                 Button {
