@@ -19,15 +19,15 @@ jobs:
     name: 发布 APK 到 GitHub Release
     runs-on: ubuntu-24.04
     env:
-      SOURCE_RUN_ID: "36021430178"
-      RELEASE_TARGET_SHA: "0d9ad708e178de208c37981c68bc726c71b493ae"
+      SOURCE_RUN_ID: "36089305719"
+      RELEASE_TARGET_SHA: "60dae4b4e682ace5b12728113089e796cbdab1d5"
       RELEASE_TAG: "waterworks-inspection-v1.1.0"
       RELEASE_TITLE: "供水巡检 v1.1.0"
     steps:
       - name: Download verified Android artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_ARTIFACT_ID: "10818930253"
+          SOURCE_ARTIFACT_ID: "10844464981"
         shell: bash
         run: |
           set -euo pipefail
@@ -52,5 +52,5 @@ jobs:
               --target "${RELEASE_TARGET_SHA}" \
               --title "${RELEASE_TITLE}" \
               --latest \
-              --notes "供水巡检 v1.1.0 正式版。基于 v1.0.0 继续完善附件与备份流程：附件可在应用内直接删除；新增应用内文字记录，可新建、查看和编辑；项目备份按完整项目目录导出 ZIP，项目数据以及照片、视频、录音、文档等附件会一并打包；同时完善附件缺失文件处理与相关检查。对应源码提交：${RELEASE_TARGET_SHA}。"
+              --notes "供水巡检 v1.1.0 正式版。基于 v1.0.0 继续完善附件与备份流程：附件可在应用内直接删除；新增应用内文字记录，可新建、查看和编辑；项目备份按完整项目目录导出 ZIP，项目数据以及照片、视频、录音、文档等附件会一并打包；同时修复查找筛选下拉菜单、删除确认、文字记录与备份/恢复弹窗被页面遮挡的 UI 层级问题。对应源码提交：${RELEASE_TARGET_SHA}。"
           fi
