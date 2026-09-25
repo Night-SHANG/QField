@@ -372,6 +372,18 @@ class PluginContractTests(unittest.TestCase):
     def test_specialised_photo_capture_auto_accepts_after_file_save(self) -> None:
         self.assertIn("autoAcceptPhoto: true", self.text)
 
+    def test_specialised_popups_stay_above_drawers(self) -> None:
+        self.assertIn("readonly property int panelLayerZ: 1000", self.text)
+        self.assertIn("readonly property int popupLayerZ: 2000", self.text)
+        self.assertIn("readonly property int dialogLayerZ: 3000", self.text)
+        self.assertGreaterEqual(self.text.count("popup.z: plugin.popupLayerZ"), 4)
+        self.assertGreaterEqual(self.text.count("popup.modal: true"), 4)
+        self.assertGreaterEqual(self.text.count("z: plugin.dialogLayerZ"), 6)
+        self.assertIn("id: browserDrawer", self.text)
+        self.assertIn("z: plugin.panelLayerZ", self.text)
+        self.assertIn("id: backupDrawer", self.text)
+        self.assertIn("z: plugin.panelLayerZ + 30", self.text)
+
     def test_safe_delete_uses_committed_expression_deletion(self) -> None:
         self.assertIn("function requestDeleteBusinessObject(objectId, objectKind)", self.text)
         self.assertIn("function confirmDeleteBusinessObject()", self.text)
