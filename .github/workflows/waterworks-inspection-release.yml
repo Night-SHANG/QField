@@ -19,15 +19,15 @@ jobs:
     name: 发布 APK 到 GitHub Release
     runs-on: ubuntu-24.04
     env:
-      SOURCE_RUN_ID: "35829747874"
-      RELEASE_TARGET_SHA: "628c98bf74085dc7ed7d1f017d53dcd1c735ee9b"
-      RELEASE_TAG: "waterworks-inspection-v1.0.0"
-      RELEASE_TITLE: "供水巡检 v1.0.0"
+      SOURCE_RUN_ID: "36021430178"
+      RELEASE_TARGET_SHA: "0d9ad708e178de208c37981c68bc726c71b493ae"
+      RELEASE_TAG: "waterworks-inspection-v1.1.0"
+      RELEASE_TITLE: "供水巡检 v1.1.0"
     steps:
       - name: Download verified Android artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_ARTIFACT_ID: "10745137630"
+          SOURCE_ARTIFACT_ID: "10818930253"
         shell: bash
         run: |
           set -euo pipefail
@@ -35,7 +35,7 @@ jobs:
           gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${SOURCE_ARTIFACT_ID}/zip" > /tmp/waterworks-artifact.zip
           unzip -q /tmp/waterworks-artifact.zip -d dist
           test -s dist/waterworks-inspection-arm64-debug.apk
-          mv dist/waterworks-inspection-arm64-debug.apk dist/waterworks-inspection-arm64-v1.0.0.apk
+          mv dist/waterworks-inspection-arm64-debug.apk dist/waterworks-inspection-arm64-v1.1.0.apk
 
       - name: Publish stable release
         env:
@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK="dist/waterworks-inspection-arm64-v1.0.0.apk"
+          APK="dist/waterworks-inspection-arm64-v1.1.0.apk"
           if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${RELEASE_TAG}" "${APK}" --repo "${GITHUB_REPOSITORY}" --clobber
           else
@@ -52,5 +52,5 @@ jobs:
               --target "${RELEASE_TARGET_SHA}" \
               --title "${RELEASE_TITLE}" \
               --latest \
-              --notes "供水巡检初版正式发布。ARM64 APK。已现场确认国家天地图矢量/影像底图可正常加载，使用浏览器端天地图 Key；当前核心地图、定位、点位/管线查看与编辑、搜索/附近、附件与备份/导出等功能可用于初版实际使用。对应源码提交：${RELEASE_TARGET_SHA}。"
+              --notes "供水巡检 v1.1.0 正式版。基于 v1.0.0 继续完善附件与备份流程：附件可在应用内直接删除；新增应用内文字记录，可新建、查看和编辑；项目备份按完整项目目录导出 ZIP，项目数据以及照片、视频、录音、文档等附件会一并打包；同时完善附件缺失文件处理与相关检查。对应源码提交：${RELEASE_TARGET_SHA}。"
           fi
