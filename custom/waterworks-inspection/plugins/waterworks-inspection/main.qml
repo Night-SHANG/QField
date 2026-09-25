@@ -27,6 +27,10 @@ Item {
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
   readonly property var repairLayerNames: ["维修记录", "repairs"]
   readonly property var attachmentLayerNames: ["附件", "attachments"]
+  // Floating UI layers: drawers < child popups < dialogs.
+  readonly property int panelLayerZ: 1000
+  readonly property int popupLayerZ: 2000
+  readonly property int dialogLayerZ: 3000
   property bool searchBusy: false
   property string queryMode: "search"
   property string queryObjectKind: "asset"
@@ -2389,6 +2393,7 @@ Item {
   QfDialog {
     id: deleteObjectDialog
     parent: mainWindow.contentItem
+    z: plugin.dialogLayerZ
     title: "确认删除"
     modal: true
     standardButtons: Dialog.NoButton
@@ -2438,6 +2443,7 @@ Item {
   QfDialog {
     id: textNoteDialog
     parent: mainWindow.contentItem
+    z: plugin.dialogLayerZ
     title: textNoteIsNew ? "新建文字记录" : "文字记录"
     modal: true
     standardButtons: Dialog.NoButton
@@ -2506,6 +2512,7 @@ Item {
   QfDialog {
     id: deleteAttachmentDialog
     parent: mainWindow.contentItem
+    z: plugin.dialogLayerZ
     title: "删除附件"
     modal: true
     standardButtons: Dialog.NoButton
@@ -2553,6 +2560,7 @@ Item {
   QfDialog {
     id: assetEntryDialog
     parent: mainWindow.contentItem
+    z: plugin.dialogLayerZ
     title: "新增点位"
     modal: true
     standardButtons: Dialog.NoButton
@@ -2591,6 +2599,8 @@ Item {
 
       ComboBox {
         id: assetEntryType
+        popup.z: plugin.popupLayerZ
+        popup.modal: true
         Layout.fillWidth: true
         model: assetTypeOptions
         textRole: "text"
@@ -2677,6 +2687,7 @@ Item {
   QfDialog {
     id: pipelineEntryDialog
     parent: mainWindow.contentItem
+    z: plugin.dialogLayerZ
     title: "填写管线参数"
     modal: true
     standardButtons: Dialog.NoButton
@@ -3093,7 +3104,7 @@ Item {
     id: attachmentDrawer
     objectName: "waterworksAttachmentDrawer"
     parent: mainWindow.contentItem
-    z: 110
+    z: plugin.panelLayerZ + 20
     edge: Qt.BottomEdge
     modal: false
     interactive: true
@@ -3271,7 +3282,7 @@ Item {
     id: browserDrawer
     objectName: "waterworksBrowserDrawer"
     parent: mainWindow.contentItem
-    z: 100
+    z: plugin.panelLayerZ
     edge: Qt.BottomEdge
     modal: false
     interactive: true
@@ -3436,6 +3447,8 @@ Item {
 
         ComboBox {
           id: searchAssetTypeFilter
+        popup.z: plugin.popupLayerZ
+        popup.modal: true
           Layout.fillWidth: true
           model: assetTypeOptions
           textRole: "text"
@@ -3446,6 +3459,8 @@ Item {
 
         ComboBox {
           id: searchAssetStatusFilter
+        popup.z: plugin.popupLayerZ
+        popup.modal: true
           Layout.fillWidth: true
           model: [
             {"text":"全部状态","value":""},
@@ -3485,7 +3500,7 @@ Item {
     id: addDrawer
     objectName: "waterworksAddDrawer"
     parent: mainWindow.contentItem
-    z: 105
+    z: plugin.panelLayerZ + 10
     edge: Qt.BottomEdge
     modal: false
     interactive: true
@@ -3545,7 +3560,7 @@ Item {
     id: moreDrawer
     objectName: "waterworksMoreDrawer"
     parent: mainWindow.contentItem
-    z: 105
+    z: plugin.panelLayerZ + 10
     edge: Qt.BottomEdge
     modal: false
     interactive: true
@@ -3600,6 +3615,8 @@ Item {
 
       ComboBox {
         id: basemapSelector
+        popup.z: plugin.popupLayerZ
+        popup.modal: true
         Layout.fillWidth: true
         model: [
           {"text":"OSM（备用）","value":"osm"},
@@ -3721,9 +3738,9 @@ Item {
     id: backupDrawer
     objectName: "waterworksBackupDrawer"
     parent: mainWindow.contentItem
-    z: 112
+    z: plugin.panelLayerZ + 30
     edge: Qt.BottomEdge
-    modal: false
+    modal: true
     interactive: true
     width: mainWindow.width
     height: Math.min(330 + mainWindow.sceneBottomMargin, mainWindow.height * 0.48)
@@ -3791,6 +3808,7 @@ Item {
   QfDialog {
     id: restoreProjectDialog
     parent: mainWindow.contentItem
+    z: plugin.dialogLayerZ
     title: "从备份恢复"
     modal: true
     standardButtons: Dialog.NoButton
