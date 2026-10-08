@@ -382,7 +382,7 @@ class PluginContractTests(unittest.TestCase):
             "dialogDropdownLayerZ",
         ):
             match = re.search(
-                rf"readonly property int {name}: (\\d+)", self.text
+                rf"readonly property int {name}: (\d+)", self.text
             )
             self.assertIsNotNone(match, f"Missing z-level: {name}")
             levels[name] = int(match.group(1))
