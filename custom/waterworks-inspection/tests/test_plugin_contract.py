@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -373,16 +374,43 @@ class PluginContractTests(unittest.TestCase):
         self.assertIn("autoAcceptPhoto: true", self.text)
 
     def test_specialised_popups_stay_above_drawers(self) -> None:
-        self.assertIn("readonly property int panelLayerZ: 1000", self.text)
-        self.assertIn("readonly property int popupLayerZ: 2000", self.text)
-        self.assertIn("readonly property int dialogLayerZ: 3000", self.text)
-        self.assertGreaterEqual(self.text.count("popup.z: plugin.popupLayerZ"), 4)
+        levels = {}
+        for name in (
+            "panelLayerZ",
+            "popupLayerZ",
+            "dialogLayerZ",
+            "dialogDropdownLayerZ",
+        ):
+            match = re.search(
+                rf"readonly property int {name}: (\\d+)", self.text
+            )
+            self.assertIsNotNone(match, f"Missing z-level: {name}")
+            levels[name] = int(match.group(1))
+
+        self.assertLess(levels["panelLayerZ"] + 30, levels["popupLayerZ"])
+        self.assertLess(levels["popupLayerZ"], levels["dialogLayerZ"])
+        self.assertLess(levels["dialogLayerZ"], levels["dialogDropdownLayerZ"])
+        self.assertGreaterEqual(self.text.count("popup.z: plugin.popupLayerZ"), 3)
         self.assertGreaterEqual(self.text.count("popup.modal: true"), 4)
         self.assertGreaterEqual(self.text.count("z: plugin.dialogLayerZ"), 6)
         self.assertIn("id: browserDrawer", self.text)
         self.assertIn("z: plugin.panelLayerZ", self.text)
         self.assertIn("id: backupDrawer", self.text)
         self.assertIn("z: plugin.panelLayerZ + 30", self.text)
+
+    def test_asset_entry_dropdown_is_above_modal_dialog(self) -> None:
+        asset_entry_combo = self.text.split("id: assetEntryType", 1)[1].split(
+            "}", 1
+        )[0]
+        self.assertIn("popup.z: plugin.dialogDropdownLayerZ", asset_entry_combo)
+        self.assertIn("popup.modal: true", asset_entry_combo)
+        self.assertIn(
+            'displayText: currentIndex === 0 ? "请选择设施类型" : currentText',
+            asset_entry_combo,
+        )
+        self.assertIn("loadAssetTypeOptions();", self.text)
+        self.assertIn('assetEntryType.currentIndex = 0;', self.text)
+        self.assertIn('mainWindow.displayToast("请选择设施类型（* 必填）")', self.text)
 
     def test_safe_delete_uses_committed_expression_deletion(self) -> None:
         self.assertIn("function requestDeleteBusinessObject(objectId, objectKind)", self.text)
