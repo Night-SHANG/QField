@@ -27,10 +27,12 @@ Item {
   readonly property var inspectionLayerNames: ["巡检记录", "inspections"]
   readonly property var repairLayerNames: ["维修记录", "repairs"]
   readonly property var attachmentLayerNames: ["附件", "attachments"]
-  // Floating UI layers: drawers < child popups < dialogs.
+  // Popup stacking: drawers < drawer dropdowns < dialogs < dialog dropdowns.
+  // A ComboBox inside a modal dialog must open ABOVE its owning dialog.
   readonly property int panelLayerZ: 1000
   readonly property int popupLayerZ: 2000
   readonly property int dialogLayerZ: 3000
+  readonly property int dialogDropdownLayerZ: 4000
   property bool searchBusy: false
   property string queryMode: "search"
   property string queryObjectKind: "asset"
@@ -2599,11 +2601,13 @@ Item {
 
       ComboBox {
         id: assetEntryType
-        popup.z: plugin.popupLayerZ
+        // The enclosing assetEntryDialog is z=3000. Its dropdown must stack above it.
+        popup.z: plugin.dialogDropdownLayerZ
         popup.modal: true
         Layout.fillWidth: true
         model: assetTypeOptions
         textRole: "text"
+        displayText: currentIndex === 0 ? "请选择设施类型" : currentText
       }
 
       Label {
